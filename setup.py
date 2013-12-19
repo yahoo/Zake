@@ -44,4 +44,5 @@ setup(name='zake',
       ],
       keywords="kazoo testing zookeeper",
       packages=find_packages(),
+      long_description=open("README.md", "r").read(),
 )
