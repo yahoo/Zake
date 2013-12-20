@@ -262,6 +262,13 @@ class FakeClient(object):
 
     def set(self, path, value, version=-1):
         self.verify()
+        if not isinstance(path, basestring):
+            raise TypeError("path must be a string")
+        if not isinstance(value, bytes):
+            raise TypeError("value must be a byte string")
+        if not isinstance(version, int):
+            raise TypeError("version must be an int")
+
         path = k_paths.normpath(path)
         with self.storage.lock:
             if version != -1:
@@ -271,7 +278,7 @@ class FakeClient(object):
                                                        "!= %s" % (stat.version,
                                                                   version))
             try:
-                self.storage[path]['data'] = str(value)
+                self.storage[path]['data'] = value
                 self.storage[path]['version'] += 1
             except KeyError:
                 raise k_exceptions.NoNodeError("No path %s" % (path))
