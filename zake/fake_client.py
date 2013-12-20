@@ -75,7 +75,8 @@ class _FakeStorage(object):
 
     @property
     def paths(self):
-        return self._paths
+        with self.lock:
+            return dict(self._paths)
 
     def pop(self, path):
         with self.lock:
@@ -86,23 +87,27 @@ class _FakeStorage(object):
             self._paths[path] = value
 
     def __getitem__(self, path):
-        return self._paths[path]
+        with self.lock:
+            return self._paths[path]
 
     def __contains__(self, path):
-        return path in self._paths
+        with self.lock:
+            return path in self._paths
 
     def get_children(self, path, only_direct=True):
         paths = {}
-        for (k, v) in list(six.iteritems(self._paths)):
-            if _is_child(path, k, only_direct=only_direct):
-                paths[k] = v
+        with self.lock:
+            for (k, v) in list(six.iteritems(self._paths)):
+                if _is_child(path, k, only_direct=only_direct):
+                    paths[k] = v
         return paths
 
     def get_parents(self, path):
         paths = {}
-        for (k, v) in list(six.iteritems(self._paths)):
-            if _is_child(k, path, only_direct=False):
-                paths[k] = v
+        with self.lock:
+            for (k, v) in list(six.iteritems(self._paths)):
+                if _is_child(k, path, only_direct=False):
+                    paths[k] = v
         return paths
 
 
