@@ -17,6 +17,7 @@
 #    under the License.
 
 import collections
+import logging
 import os
 import time
 
@@ -26,6 +27,8 @@ from kazoo import exceptions as k_exceptions
 from kazoo.handlers import threading as k_threading
 from kazoo.protocol import paths as k_paths
 from kazoo.protocol import states as k_states
+
+LOG = logging.getLogger(__name__)
 
 
 def partition_path(path):
@@ -129,6 +132,7 @@ class FakeClient(object):
         self._lock = self.handler.rlock_object()
         self._connected = False
         self.expired = False
+        self.logger = LOG
 
     def verify(self):
         if not self.connected:
@@ -354,6 +358,9 @@ class FakeClient(object):
             for w in watches:
                 self.handler.dispatch_callback(_make_cb(w, [event]))
 
+    def transaction(self):
+        return FakeTransactionRequest(self)
+
     def ensure_path(self, path):
         self.verify()
         path = k_paths.normpath(path)
@@ -363,3 +370,45 @@ class FakeClient(object):
                 self.create(p)
             except k_exceptions.NodeExistsError:
                 pass
+
+
+class FakeTransactionRequest(object):
+    def __init__(self, client):
+        self.client = client
+        self.operations = []
+        self.committed = False
+
+    def delete(self, path, version=-1):
+        self.operations.append((self.client.delete, [path, version]))
+
+    def check(self, path, version):
+
+        # TODO(harlowja): maybe implement this?
+        def noop():
+            return None
+
+        self.operations.append((noop, []))
+
+    def set_data(self, path, value, version=-1):
+        self.operations.append((self.client.set, [path, value, version]))
+
+    def create(self, path, value=b"", acl=None, ephemeral=False,
+               sequence=False):
+        self.operations.append((self.client.create,
+                                [path, value, acl, emphemeral, sequence]))
+
+    def commit(self):
+        if self.committed:
+            raise ValueError('Transaction already committed')
+        self.committed = True
+        results = []
+        for (f, args) in self.operations:
+            results.append(f(*args))
+        return results
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, type, value, tb):
+        if not any((type, value, tb)):
+            self.commit()
