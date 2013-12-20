@@ -24,7 +24,7 @@ from setuptools import setup
 from setuptools import find_packages
 
 setup(name='zake',
-      version='0.0.2',
+      version='0.0.3',
       description='A python package that works to provide a nice set of '
                   'testing utilities for the kazoo library.',
       author="Joshua Harlow",

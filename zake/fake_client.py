@@ -267,9 +267,9 @@ class FakeClient(object):
 
     def set(self, path, value, version=-1):
         self.verify()
-        if not isinstance(path, basestring):
+        if not isinstance(path, six.string_types):
             raise TypeError("path must be a string")
-        if not isinstance(value, bytes):
+        if not isinstance(value, six.binary_type):
             raise TypeError("value must be a byte string")
         if not isinstance(version, int):
             raise TypeError("version must be an int")
