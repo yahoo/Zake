@@ -60,7 +60,7 @@ class FakeStorage(object):
         paths = {}
         with self.lock:
             for (k, v) in list(six.iteritems(self._paths)):
-                if utils.is_child(path, k, only_direct=only_direct):
+                if utils.is_child_path(path, k, only_direct=only_direct):
                     paths[k] = v
         return paths
 
@@ -68,6 +68,6 @@ class FakeStorage(object):
         paths = {}
         with self.lock:
             for (k, v) in list(six.iteritems(self._paths)):
-                if utils.is_child(k, path, only_direct=False):
+                if utils.is_child_path(k, path, only_direct=False):
                     paths[k] = v
         return paths
