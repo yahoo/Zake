@@ -28,90 +28,14 @@ from kazoo.handlers import threading as k_threading
 from kazoo.protocol import paths as k_paths
 from kazoo.protocol import states as k_states
 
+from zake import fake_storage as fs
+from zake import utils
+
 LOG = logging.getLogger(__name__)
-
-
-def partition_path(path):
-    path_pieces = [path]
-    cur_path = path
-    while True:
-        (b_path, _a) = os.path.split(cur_path)
-        if b_path == cur_path:
-            path_pieces.append(b_path)
-            break
-        else:
-            path_pieces.append(b_path)
-            cur_path = b_path
-    return sorted(set(path_pieces))
-
-
-def _millitime():
-    return int(round(time.time() * 1000.0))
 
 
 def _make_cb(func, args, type=''):
     return k_states.Callback(type=type, func=func, args=args)
-
-
-def _is_child(parent_path, child_path, only_direct=True):
-    parent_pieces = [p for p in parent_path.split("/") if p]
-    child_pieces = [p for p in child_path.split("/") if p]
-    if len(child_pieces) <= len(parent_pieces):
-        return False
-    shared_pieces = child_pieces[0:len(parent_pieces)]
-    if tuple(parent_pieces) != tuple(shared_pieces):
-        return False
-    if only_direct:
-        return len(child_pieces) == len(parent_pieces) + 1
-    return True
-
-
-class _FakeStorage(object):
-    """A place too place fake zookeeper paths + data"""
-
-    def __init__(self, lock, paths=None):
-        if paths:
-            self._paths = dict(paths)
-        else:
-            self._paths = {}
-        self.lock = lock
-
-    @property
-    def paths(self):
-        with self.lock:
-            return dict(self._paths)
-
-    def pop(self, path):
-        with self.lock:
-            self._paths.pop(path)
-
-    def __setitem__(self, path, value):
-        with self.lock:
-            self._paths[path] = value
-
-    def __getitem__(self, path):
-        with self.lock:
-            return self._paths[path]
-
-    def __contains__(self, path):
-        with self.lock:
-            return path in self._paths
-
-    def get_children(self, path, only_direct=True):
-        paths = {}
-        with self.lock:
-            for (k, v) in list(six.iteritems(self._paths)):
-                if _is_child(path, k, only_direct=only_direct):
-                    paths[k] = v
-        return paths
-
-    def get_parents(self, path):
-        paths = {}
-        with self.lock:
-            for (k, v) in list(six.iteritems(self._paths)):
-                if _is_child(k, path, only_direct=False):
-                    paths[k] = v
-        return paths
 
 
 class FakeClient(object):
@@ -130,10 +54,10 @@ class FakeClient(object):
             self.handler = handler
         else:
             self.handler = k_threading.SequentialThreadingHandler()
-        if storage:
+        if storage is not None:
             self.storage = storage
         else:
-            self.storage = _FakeStorage(lock=self.handler.rlock_object())
+            self.storage = fs.FakeStorage(lock=self.handler.rlock_object())
         self._lock = self.handler.rlock_object()
         self._connected = False
         self.expired = False
@@ -164,6 +88,8 @@ class FakeClient(object):
 
     def sync(self, path):
         self.verify()
+        if not isinstance(path, six.string_types):
+            raise TypeError("path must be a string")
 
     def flush(self):
         self.verify()
@@ -187,6 +113,11 @@ class FakeClient(object):
     def create(self, path, value=b"", acl=None,
                ephemeral=False, sequence=False):
         self.verify()
+        if not isinstance(path, six.string_types):
+            raise TypeError("path must be a string")
+        if not isinstance(value, six.binary_type):
+            raise TypeError("value must be a byte string")
+
         path = k_paths.normpath(path)
         if sequence:
             raise NotImplementedError("Sequencing not currently supported")
@@ -207,8 +138,8 @@ class FakeClient(object):
                 raise k_exceptions.NoNodeError("No parent %s" % (parent_path))
             self.storage[path] = {
                 # Kazoo clients expect in milliseconds
-                'created_on': _millitime(),
-                'updated_on': _millitime(),
+                'created_on': utils.millitime(),
+                'updated_on': utils.millitime(),
                 'version': 0,
                 # Not supported for now...
                 'aversion': -1,
@@ -246,6 +177,9 @@ class FakeClient(object):
 
     def get(self, path, watch=None):
         self.verify()
+        if not isinstance(path, six.string_types):
+            raise TypeError("path must be a string")
+
         path = k_paths.normpath(path)
         try:
             node = self.storage[path]
@@ -267,6 +201,10 @@ class FakeClient(object):
             self.handler.dispatch_callback(_make_cb(func, [state]))
 
     def exists(self, path, watch=None):
+        self.verify()
+        if not isinstance(path, six.string_types):
+            raise TypeError("path must be a string")
+
         try:
             return self.get(path, watch=watch)[1]
         except k_exceptions.NoNodeError:
@@ -310,6 +248,8 @@ class FakeClient(object):
 
     def get_children(self, path, watch=None, include_data=False):
         self.verify()
+        if not isinstance(path, six.string_types):
+            raise TypeError("path must be a string")
 
         def _clean(p):
             return p.strip("/")
@@ -341,6 +281,9 @@ class FakeClient(object):
 
     def delete(self, path, recursive=False):
         self.verify()
+        if not isinstance(path, six.string_types):
+            raise TypeError("path must be a string")
+
         path = k_paths.normpath(path)
         with self.storage.lock:
             if path not in self.storage:
@@ -380,8 +323,11 @@ class FakeClient(object):
 
     def ensure_path(self, path):
         self.verify()
+        if not isinstance(path, six.string_types):
+            raise TypeError("path must be a string")
+
         path = k_paths.normpath(path)
-        path_pieces = partition_path(path)
+        path_pieces = utils.partition_path(path)
         for p in path_pieces:
             try:
                 self.create(p)
