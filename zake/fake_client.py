@@ -17,6 +17,7 @@
 #    under the License.
 
 import collections
+import logging
 import os
 import time
 
@@ -26,6 +27,8 @@ from kazoo import exceptions as k_exceptions
 from kazoo.handlers import threading as k_threading
 from kazoo.protocol import paths as k_paths
 from kazoo.protocol import states as k_states
+
+LOG = logging.getLogger(__name__)
 
 
 def partition_path(path):
@@ -134,13 +137,14 @@ class FakeClient(object):
         self._lock = self.handler.rlock_object()
         self._connected = False
         self.expired = False
+        self.logger = LOG
 
     def verify(self):
         if not self.connected:
             raise k_exceptions.ConnectionClosedError("Connection has been"
                                                      " closed")
         if self.expired:
-            raise k_exceptions.SessionExpiredError()
+            raise k_exceptions.SessionExpiredError("Expired")
 
     @property
     def timeout_exception(self):
@@ -180,11 +184,14 @@ class FakeClient(object):
                 fired = True
             time.sleep(0.001)
 
-    def create(self, path, value='', ephemeral=False, sequence=False):
+    def create(self, path, value=b"", acl=None,
+               ephemeral=False, sequence=False):
         self.verify()
         path = k_paths.normpath(path)
         if sequence:
             raise NotImplementedError("Sequencing not currently supported")
+        if acl:
+            raise NotImplementedError("ACL not currently supported")
         with self.storage.lock:
             if path in self.storage:
                 raise k_exceptions.NodeExistsError("Node %s already there"
@@ -288,6 +295,7 @@ class FakeClient(object):
             except KeyError:
                 raise k_exceptions.NoNodeError("No path %s" % (path))
             parents = sorted(six.iterkeys(self.storage.get_parents(path)))
+            (_data, stat) = self.get(path)
 
         # Fire any attached watches.
         event = k_states.WatchedEvent(type=k_states.EventType.CHANGED,
@@ -298,6 +306,7 @@ class FakeClient(object):
                                       state=k_states.KeeperState.CONNECTED,
                                       path=path)
         self._fire_watches(parents, event)
+        return stat
 
     def get_children(self, path, watch=None, include_data=False):
         self.verify()
@@ -366,6 +375,9 @@ class FakeClient(object):
             for w in watches:
                 self.handler.dispatch_callback(_make_cb(w, [event]))
 
+    def transaction(self):
+        return FakeTransactionRequest(self)
+
     def ensure_path(self, path):
         self.verify()
         path = k_paths.normpath(path)
@@ -375,3 +387,42 @@ class FakeClient(object):
                 self.create(p)
             except k_exceptions.NodeExistsError:
                 pass
+
+
+class FakeTransactionRequest(object):
+    def __init__(self, client):
+        self.client = client
+        self.operations = []
+        self.committed = False
+
+    def delete(self, path, version=-1):
+        self.operations.append((self.client.delete, [path, version]))
+
+    def check(self, path, version):
+        raise NotImplementedError("Check not currently supported")
+
+    def set_data(self, path, value, version=-1):
+        self.operations.append((self.client.set, [path, value, version]))
+
+    def create(self, path, value=b"", acl=None, ephemeral=False,
+               sequence=False):
+        self.operations.append((self.client.create,
+                                [path, value, acl, ephemeral, sequence]))
+
+    def commit(self):
+        if self.committed:
+            raise ValueError('Transaction already committed')
+        self.committed = True
+        results = []
+        with self.client.storage.lock:
+            self.client.verify()
+            for (f, args) in self.operations:
+                results.append(f(*args))
+            return results
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, type, value, tb):
+        if not any((type, value, tb)):
+            self.commit()
