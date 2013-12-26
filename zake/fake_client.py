@@ -229,6 +229,7 @@ class FakeClient(object):
                                                                   version))
             try:
                 self.storage[path]['data'] = value
+                self.storage[path]['updated_on'] = utils.millitime()
                 self.storage[path]['version'] += 1
             except KeyError:
                 raise k_exceptions.NoNodeError("No path %s" % (path))
