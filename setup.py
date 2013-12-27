@@ -18,29 +18,30 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-from setuptools import setup
 from setuptools import find_packages
+from setuptools import setup
 
-setup(name='zake',
-      version='0.0.5',
-      description='A python package that works to provide a nice set of '
-                  'testing utilities for the kazoo library.',
-      author="Joshua Harlow",
-      author_email='harlowja@yahoo-inc.com',
-      url='https://github.com/yahoo/Zake',
-      license="ASL 2.0",
-      install_requires=[
-          'kazoo',
-          'six',
-      ],
-      classifiers=[
+setup(
+    name='zake',
+    version='0.0.6',
+    description='A python package that works to provide a nice set of '
+                'testing utilities for the kazoo library.',
+    author="Joshua Harlow",
+    author_email='harlowja@yahoo-inc.com',
+    url='https://github.com/yahoo/Zake',
+    license="ASL 2.0",
+    install_requires=[
+        'kazoo',
+        'six',
+    ],
+    classifiers=[
         "Development Status :: 4 - Beta",
         "Topic :: Utilities",
         "License :: OSI Approved :: Apache Software License",
         "Operating System :: POSIX :: Linux",
         "Programming Language :: Python",
-      ],
-      keywords="kazoo testing zookeeper",
-      packages=find_packages(),
-      long_description=open("README.md", "r").read(),
+    ],
+    keywords="kazoo testing zookeeper",
+    packages=find_packages(),
+    long_description=open("README.md", "r").read(),
 )

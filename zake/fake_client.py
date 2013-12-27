@@ -162,6 +162,12 @@ class FakeClient(object):
         self._fire_watches(parents[0:-1], event)
         return path
 
+    def create_async(self, path, value=b"", acl=None,
+                     ephemeral=False, sequence=False):
+        return self._generate_async(self.create, path, value=value,
+                                    acl=acl, ephemeral=ephemeral,
+                                    sequence=sequence)
+
     def _make_znode(self, path, node):
         child_count = len(self.get_children(path))
         return k_states.ZnodeStat(czxid=-1,
@@ -177,7 +183,19 @@ class FakeClient(object):
                                   numChildren=child_count)
 
     def get(self, path, watch=None):
-        return self.get_async(path, watch=watch).get()
+        self.verify()
+        if not isinstance(path, six.string_types):
+            raise TypeError("path must be a string")
+        try:
+            node = self.storage[path]
+        except KeyError:
+            raise k_exceptions.NoNodeError("No path %s" % (path))
+        if watch:
+            self._watches[path].append(watch)
+        return (node['data'], self._make_znode(path, node))
+
+    def get_async(self, path, watch=None):
+        return self._generate_async(self.get, path, watch=watch)
 
     def start(self, timeout=None):
         with self._lock:
@@ -190,25 +208,14 @@ class FakeClient(object):
         for func in self._listeners:
             self.handler.dispatch_callback(_make_cb(func, [state]))
 
-    def get_async(self, path, watch=None):
-        self.verify()
-        if not isinstance(path, six.string_types):
-            raise TypeError("path must be a string")
-
+    def _generate_async(self, func, *args, **kwargs):
         async_result = self.handler.async_result()
 
         @k_utils.wrap(async_result)
-        def get_it():
-            self.verify()
-            try:
-                node = self.storage[path]
-            except KeyError:
-                raise k_exceptions.NoNodeError("No path %s" % (path))
-            if watch:
-                self._watches[path].append(watch)
-            return (node['data'], self._make_znode(path, node))
+        def run():
+            return func(*args, **kwargs)
 
-        self.handler.dispatch_callback(_make_cb(get_it, []))
+        self.handler.dispatch_callback(_make_cb(run, []))
         return async_result
 
     def exists(self, path, watch=None):
@@ -220,6 +227,9 @@ class FakeClient(object):
             return self.get(path, watch=watch)[1]
         except k_exceptions.NoNodeError:
             return None
+
+    def exists_async(self, path, watch=None):
+        return self._generate_async(self.exists, path, watch=watch)
 
     def set(self, path, value, version=-1):
         self.verify()
@@ -257,6 +267,9 @@ class FakeClient(object):
                                       path=path)
         self._fire_watches(parents, event)
         return stat
+
+    def set_async(self, path, value, version=-1):
+        return self._generate_async(self.set, path, value, version=version)
 
     def get_children(self, path, watch=None, include_data=False):
         self.verify()
@@ -313,6 +326,9 @@ class FakeClient(object):
                     state=k_states.KeeperState.CONNECTED,
                     path=p)
                 self._fire_watches([p], event)
+
+    def delete_async(self, path, recursive=False):
+        return self._generate_async(self.delete, path, recursive=recursive)
 
     def add_listener(self, listener):
         self._listeners.add(listener)
