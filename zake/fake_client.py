@@ -25,6 +25,7 @@ import six
 
 from kazoo import exceptions as k_exceptions
 from kazoo.handlers import threading as k_threading
+from kazoo.handlers import utils as k_utils
 from kazoo.protocol import paths as k_paths
 from kazoo.protocol import states as k_states
 
@@ -176,18 +177,7 @@ class FakeClient(object):
                                   numChildren=child_count)
 
     def get(self, path, watch=None):
-        self.verify()
-        if not isinstance(path, six.string_types):
-            raise TypeError("path must be a string")
-
-        path = k_paths.normpath(path)
-        try:
-            node = self.storage[path]
-        except KeyError:
-            raise k_exceptions.NoNodeError("No path %s" % (path))
-        if watch:
-            self._watches[path].append(watch)
-        return (node['data'], self._make_znode(path, node))
+        return self.get_async(path, watch=watch).get()
 
     def start(self, timeout=None):
         with self._lock:
@@ -199,6 +189,27 @@ class FakeClient(object):
     def _fire_state_change(self, state):
         for func in self._listeners:
             self.handler.dispatch_callback(_make_cb(func, [state]))
+
+    def get_async(self, path, watch=None):
+        self.verify()
+        if not isinstance(path, six.string_types):
+            raise TypeError("path must be a string")
+
+        async_result = self.handler.async_result()
+
+        @k_utils.wrap(async_result)
+        def get_it():
+            self.verify()
+            try:
+                node = self.storage[path]
+            except KeyError:
+                raise k_exceptions.NoNodeError("No path %s" % (path))
+            if watch:
+                self._watches[path].append(watch)
+            return (node['data'], self._make_znode(path, node))
+
+        self.handler.dispatch_callback(_make_cb(get_it, []))
+        return async_result
 
     def exists(self, path, watch=None):
         self.verify()
