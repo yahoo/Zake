@@ -362,6 +362,9 @@ class FakeClient(object):
             except k_exceptions.NodeExistsError:
                 pass
 
+    def close(self):
+        self._connected = False
+
 
 class FakeTransactionRequest(object):
     def __init__(self, client):
