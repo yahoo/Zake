@@ -294,6 +294,9 @@ class FakeClient(object):
                 children.append(_clean(p[len(path):]))
             return children
 
+    def get_children_async(self, path, watch=None, include_data=False):
+        return self._generate_async(self.get_children, path, watch=watch, include_data=include_data)
+
     def stop(self):
         with self._lock:
             if not self._connected:
