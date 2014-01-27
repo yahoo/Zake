@@ -25,7 +25,6 @@ import six
 
 from kazoo import exceptions as k_exceptions
 from kazoo.handlers import threading as k_threading
-from kazoo.handlers import utils as k_utils
 from kazoo.protocol import paths as k_paths
 from kazoo.protocol import states as k_states
 
@@ -211,9 +210,13 @@ class FakeClient(object):
     def _generate_async(self, func, *args, **kwargs):
         async_result = self.handler.async_result()
 
-        @k_utils.wrap(async_result)
         def run():
-            return func(*args, **kwargs)
+            try:
+                result = func(*args, **kwargs)
+                async_result.set(result)
+                return result
+            except Exception as exc:
+                async_result.set_exception(exc)
 
         self.handler.dispatch_callback(_make_cb(run, []))
         return async_result
@@ -329,6 +332,7 @@ class FakeClient(object):
                     state=k_states.KeeperState.CONNECTED,
                     path=p)
                 self._fire_watches([p], event)
+            return True
 
     def delete_async(self, path, recursive=False):
         return self._generate_async(self.delete, path, recursive=recursive)
