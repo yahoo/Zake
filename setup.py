@@ -23,7 +23,7 @@ from setuptools import setup
 
 setup(
     name='zake',
-    version='0.0.8',
+    version='0.0.9',
     description='A python package that works to provide a nice set of '
                 'testing utilities for the kazoo library.',
     author="Joshua Harlow",
