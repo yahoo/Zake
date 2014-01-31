@@ -64,6 +64,8 @@ class FakeClient(object):
             self._server_version = (3, 4, 0)
         else:
             self._server_version = tuple(server_version)
+            if not len(self._server_version):
+                raise ValueError("Non-empty server version expected")
         self.expired = False
         self.logger = LOG
 
