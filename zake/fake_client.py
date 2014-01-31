@@ -47,7 +47,7 @@ class FakeClient(object):
     testing frameworks (while in use and after the fact).
     """
 
-    def __init__(self, handler=None, storage=None):
+    def __init__(self, handler=None, storage=None, server_version=None):
         self._listeners = set()
         self._watches = collections.defaultdict(list)
         if handler:
@@ -60,6 +60,10 @@ class FakeClient(object):
             self.storage = fs.FakeStorage(lock=self.handler.rlock_object())
         self._lock = self.handler.rlock_object()
         self._connected = False
+        if not server_version:
+            self._server_version = (3, 4, 0)
+        else:
+            self._server_version = tuple(server_version)
         self.expired = False
         self.logger = LOG
 
@@ -90,6 +94,10 @@ class FakeClient(object):
         self.verify()
         if not isinstance(path, six.string_types):
             raise TypeError("path must be a string")
+
+    def server_version(self):
+        self.verify()
+        return self._server_version
 
     def flush(self):
         self.verify()
