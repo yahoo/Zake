@@ -33,6 +33,11 @@ from zake import utils
 
 LOG = logging.getLogger(__name__)
 
+# We provide a basic txn support (not as functional as zookeeper) and this
+# was added in 3.4.0 so we will say we are 3.4.0 compat (until proven
+# differently).
+SERVER_VERSION = (3, 4, 0)
+
 
 def _make_cb(func, args, type=''):
     return k_states.Callback(type=type, func=func, args=args)
@@ -61,7 +66,7 @@ class FakeClient(object):
         self._lock = self.handler.rlock_object()
         self._connected = False
         if not server_version:
-            self._server_version = (3, 4, 0)
+            self._server_version = SERVER_VERSION
         else:
             self._server_version = tuple(server_version)
             if not len(self._server_version):
