@@ -1,7 +1,8 @@
 Zake
 ====
 
-.. image:: https://travis-ci.org/yahoo/Zake.png?branch=master   :target: https://travis-ci.org/yahoo/Zake
+.. image:: https://travis-ci.org/yahoo/Zake.png?branch=master
+   :target: https://travis-ci.org/yahoo/Zake
 
 
 A python package that works to provide a nice set of testing utilities for the kazoo library.
