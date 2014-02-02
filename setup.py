@@ -23,7 +23,7 @@ from setuptools import setup
 
 setup(
     name='zake',
-    version='0.0.12',
+    version='0.0.13',
     description='A python package that works to provide a nice set of '
                 'testing utilities for the kazoo library.',
     author="Joshua Harlow",
@@ -43,5 +43,5 @@ setup(
     ],
     keywords="kazoo testing zookeeper",
     packages=find_packages(),
-    long_description=open("README.rst", "rb").read(),
+    long_description=open("README.rst", "r").read(),
 )
