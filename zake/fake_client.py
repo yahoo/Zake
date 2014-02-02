@@ -30,6 +30,7 @@ from kazoo.protocol import states as k_states
 
 from zake import fake_storage as fs
 from zake import utils
+from zake import version
 
 LOG = logging.getLogger(__name__)
 
@@ -73,6 +74,17 @@ class FakeClient(object):
                 raise ValueError("Non-empty server version expected")
         self.expired = False
         self.logger = LOG
+
+    def command(self, cmd=b'ruok'):
+        self.verify()
+        if cmd == 'ruok':
+            return 'imok'
+        if cmd == 'stat':
+            server_version = ".".join([str(s) for s in SERVER_VERSION])
+            return "\n".join(['Zake the fake version: %s' % (version.VERSION),
+                              'Mimicked version: %s' % (server_version),
+                              'Mode: standalone'])
+        return ''
 
     def verify(self):
         if not self.connected:
