@@ -1,6 +1,9 @@
 Zake
 ====
 
+.. image:: https://travis-ci.org/yahoo/Zake.png?branch=master   :target: https://travis-ci.org/yahoo/Zake
+
+
 A python package that works to provide a nice set of testing utilities for the kazoo library.
 
 It includes the following functionality:
@@ -15,5 +18,3 @@ It simplifies testing by providing a client that has a similar API as the kazoo
 client so that your tests (or applications/libraries that use kazoo) do not
 require a real zookeeper server to be  tested with (since this is not available
 in all testing environments).
-
-.. image:: https://travis-ci.org/yahoo/Zake.png?branch=master   :target: https://travis-ci.org/yahoo/Zake
