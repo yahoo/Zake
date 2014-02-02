@@ -84,6 +84,8 @@ class FakeClient(object):
             return "\n".join(['Zake the fake version: %s' % (version.VERSION),
                               'Mimicked version: %s' % (server_version),
                               'Mode: standalone'])
+        if cmd == "kill":
+            self.stop()
         return ''
 
     def verify(self):
