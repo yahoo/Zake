@@ -2,7 +2,7 @@
 
 # vim: tabstop=4 shiftwidth=4 softtabstop=4
 
-#    Copyright (C) 2014 Yahoo! Inc. All Rights Reserved.
+#    Copyright (C) 2013 Yahoo! Inc. All Rights Reserved.
 #
 #    Licensed under the Apache License, Version 2.0 (the "License"); you may
 #    not use this file except in compliance with the License. You may obtain
@@ -15,10 +15,3 @@
 #    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 #    License for the specific language governing permissions and limitations
 #    under the License.
-
-import pkg_resources
-
-try:
-    VERSION = pkg_resources.get_distribution("zake").version
-except Exception:
-    VERSION = None
