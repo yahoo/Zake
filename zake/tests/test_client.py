@@ -16,7 +16,10 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import collections
+
 from kazoo import exceptions as k_exceptions
+from kazoo.recipe import watchers as k_watchers
 import testtools
 
 from zake import fake_client
@@ -104,3 +107,22 @@ class TestClient(testtools.TestCase):
             txn.set_data("/b/c", b'e')
         data, znode = c.get("/b/c")
         self.assertEqual(b'e', data)
+        self.assertTrue(txn.committed)
+
+    def test_data_watch(self):
+        updates = collections.deque()
+
+        def _notify_me(data, stat):
+            updates.append((data, stat))
+
+        c = fake_client.FakeClient()
+        c.start()
+        c.ensure_path("/b")
+        k_watchers.DataWatch(c, "/b", func=_notify_me)
+
+        c.set("/b", b"1")
+        c.flush()
+        c.set("/b", b"2")
+        c.flush()
+
+        self.assertEqual(3, len(updates))

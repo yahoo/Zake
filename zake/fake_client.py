@@ -198,9 +198,9 @@ class FakeClient(object):
 
     def _make_znode(self, path, node):
         child_count = len(self.get_children(path))
-        return k_states.ZnodeStat(czxid=-1,
-                                  mzxid=-1,
-                                  pzxid=-1,
+        return k_states.ZnodeStat(czxid=node['version'],
+                                  mzxid=node['version'],
+                                  pzxid=node['version'],
                                   ctime=node['created_on'],
                                   mtime=node['updated_on'],
                                   version=node['version'],
@@ -438,4 +438,5 @@ class FakeTransactionRequest(object):
 
     def __exit__(self, type, value, tb):
         if not any((type, value, tb)):
-            self.commit()
+            if not self.committed:
+                self.commit()
