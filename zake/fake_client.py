@@ -18,7 +18,6 @@
 
 import collections
 import logging
-import os
 import time
 
 import six
@@ -146,48 +145,23 @@ class FakeClient(object):
             raise TypeError("path must be a string")
         if not isinstance(value, six.binary_type):
             raise TypeError("value must be a byte string")
-
-        path = k_paths.normpath(path)
-        if sequence:
-            raise NotImplementedError("Sequencing not currently supported")
         if acl:
             raise NotImplementedError("ACL not currently supported")
-        with self.storage.lock:
-            if path in self.storage:
-                raise k_exceptions.NodeExistsError("Node %s already there"
-                                                   % path)
-            parent_path = os.path.split(path)[0]
-            if parent_path == path and path in self.storage:
-                # This is "/" and it already exists.
-                return
-            elif parent_path == path:
-                # This is "/" and it doesn't already exists.
-                pass
-            elif parent_path not in self.storage:
-                raise k_exceptions.NoNodeError("No parent %s" % (parent_path))
-            self.storage[path] = {
-                # Kazoo clients expect in milliseconds
-                'created_on': utils.millitime(),
-                'updated_on': utils.millitime(),
-                'version': 0,
-                # Not supported for now...
-                'aversion': -1,
-                'cversion': -1,
-                'data': value,
-            }
-            parents = sorted(six.iterkeys(self.storage.get_parents(path)))
-        if not parents:
-            return
 
+        created, parents, path = self.storage.create(path,
+                                                     value=value,
+                                                     sequence=sequence)
         # Fire any attached watches.
-        event = k_states.WatchedEvent(type=k_states.EventType.CREATED,
-                                      state=k_states.KeeperState.CONNECTED,
-                                      path=path)
-        self._fire_watches([parents[-1]], event)
-        event = k_states.WatchedEvent(type=k_states.EventType.CHILD,
-                                      state=k_states.KeeperState.CONNECTED,
-                                      path=path)
-        self._fire_watches(parents[0:-1], event)
+        if created and parents:
+            event = k_states.WatchedEvent(type=k_states.EventType.CREATED,
+                                          state=k_states.KeeperState.CONNECTED,
+                                          path=path)
+            self._fire_watches([parents[-1]], event)
+        if parents:
+            event = k_states.WatchedEvent(type=k_states.EventType.CHILD,
+                                          state=k_states.KeeperState.CONNECTED,
+                                          path=path)
+            self._fire_watches(parents[0:-1], event)
         return path
 
     def create_async(self, path, value=b"", acl=None,
@@ -327,7 +301,8 @@ class FakeClient(object):
             return children
 
     def get_children_async(self, path, watch=None, include_data=False):
-        return self._generate_async(self.get_children, path, watch=watch, include_data=include_data)
+        return self._generate_async(self.get_children, path,
+                                    watch=watch, include_data=include_data)
 
     def stop(self):
         with self._lock:

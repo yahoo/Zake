@@ -16,32 +16,98 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import os
 import threading
 
 import six
 
 from zake import utils
 
+from kazoo import exceptions as k_exceptions
+from kazoo.protocol import paths as k_paths
+
+
+# See: https://issues.apache.org/jira/browse/ZOOKEEPER-243
+SEQ_ROLLOVER = 2147483647
+SEQ_ROLLOVER_TO = -2147483647
+
+
+def _split_path(path):
+    return os.path.split(path)
+
 
 class FakeStorage(object):
     """A place too place fake zookeeper paths + data."""
 
-    def __init__(self, lock=None, paths=None):
+    def __init__(self, lock=None, paths=None, sequences=None):
         if paths:
             self._paths = dict(paths)
         else:
             self._paths = {}
+        if sequences:
+            self._sequences = sequences
+        else:
+            self._sequences = {}
         if lock is None:
             lock = threading.RLock()
         self.lock = lock
+        # Ensure the root path *always* exists.
+        if "/" not in self._paths:
+            self._paths["/"] = {
+                'created_on': 0,
+                'updated_on': 0,
+                'version': 0,
+                # Not supported for now...
+                'aversion': -1,
+                'cversion': -1,
+                'data': b"",
+            }
 
     @property
     def paths(self):
         with self.lock:
             return dict(self._paths)
 
+    @property
+    def sequences(self):
+        with self.lock:
+            return dict(self._sequences)
+
+    def create(self, path, value=b"", sequence=False):
+        path = k_paths.normpath(path)
+        parent_path, _node_name = _split_path(path)
+        if sequence:
+            with self.lock:
+                sequence_id = self._sequences.get(parent_path, 0)
+                if sequence_id == SEQ_ROLLOVER:
+                    self._sequences[parent_path] = SEQ_ROLLOVER_TO
+                else:
+                    self._sequences[parent_path] = sequence_id + 1
+                path = path + '%010d' % (sequence_id)
+        with self.lock:
+            if parent_path not in self:
+                raise k_exceptions.NoNodeError("Parent node %s does not exist"
+                                               % (parent_path))
+            if path in self:
+                raise k_exceptions.NodeExistsError("Node %s already"
+                                                   " exists" % (path))
+            self._paths[path] = {
+                # Kazoo clients expect in milliseconds
+                'created_on': utils.millitime(),
+                'updated_on': utils.millitime(),
+                'version': 0,
+                # Not supported for now...
+                'aversion': -1,
+                'cversion': -1,
+                'data': value,
+            }
+            parents = sorted(six.iterkeys(self.get_parents(path)))
+            return (True, parents, path)
+
     def pop(self, path):
         with self.lock:
+            if path == "/":
+                raise k_exceptions.BadArgumentsError("Can not delete '/'")
             self._paths.pop(path)
 
     def __setitem__(self, path, value):
