@@ -124,6 +124,15 @@ class FakeClient(object):
         self.verify()
         return self._server_version
 
+    def wait(self, delay=0.01):
+        """Waits until the handlers completion_queue and callback_queue
+        are empty. This is useful to make sure that all watchers and callbacks
+        have settled before performing further operations.
+        """
+        while not all([self.handler.completion_queue.empty(),
+                       self.handler.callback_queue.empty()]):
+            time.sleep(delay)
+
     def flush(self):
         self.verify()
 
