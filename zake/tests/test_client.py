@@ -132,15 +132,45 @@ class TestClient(test.Test):
     def test_data_watch(self):
         updates = collections.deque()
 
-        def _notify_me(data, stat):
+        def notify_me(data, stat):
             updates.append((data, stat))
 
         with start_close(self.client) as c:
+            k_watchers.DataWatch(self.client, "/b", func=notify_me)
             c.ensure_path("/b")
-            k_watchers.DataWatch(c, "/b", func=_notify_me)
+            c.flush()
             c.set("/b", b"1")
             c.flush()
             c.set("/b", b"2")
             c.flush()
 
-        self.assertEqual(3, len(updates))
+        self.assertEqual(4, len(updates))
+
+        with start_close(self.client) as c:
+            c.delete("/b")
+            c.flush()
+
+        self.assertEqual(5, len(updates))
+
+    def test_child_watch(self):
+        updates = collections.deque()
+
+        def one_time_collector_func(children):
+            updates.extend(children)
+            return False
+
+        k_watchers.ChildrenWatch(self.client, "/",
+                                 func=one_time_collector_func)
+        with start_close(self.client) as c:
+            c.ensure_path("/b")
+            c.flush()
+
+        self.assertEquals(['b'], list(updates))
+
+        k_watchers.ChildrenWatch(self.client, "/b",
+                                 func=one_time_collector_func)
+        updates.clear()
+        with start_close(self.client) as c:
+            c.ensure_path("/b/c")
+            c.flush()
+        self.assertEquals(['c'], list(updates))
