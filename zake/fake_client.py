@@ -54,7 +54,8 @@ class FakeClient(object):
 
     def __init__(self, handler=None, storage=None, server_version=None):
         self._listeners = set()
-        self._watches = collections.defaultdict(list)
+        self._child_watches = collections.defaultdict(list)
+        self._data_watches = collections.defaultdict(list)
         if handler:
             self.handler = handler
         else:
@@ -99,8 +100,12 @@ class FakeClient(object):
         return IOError
 
     @property
-    def watches(self):
-        return self._watches
+    def child_watches(self):
+        return self._child_watches
+
+    @property
+    def data_watches(self):
+        return self._data_watches
 
     @property
     def listeners(self):
@@ -151,17 +156,18 @@ class FakeClient(object):
         created, parents, path = self.storage.create(path,
                                                      value=value,
                                                      sequence=sequence)
-        # Fire any attached watches.
-        if created and parents:
-            event = k_states.WatchedEvent(type=k_states.EventType.CREATED,
-                                          state=k_states.KeeperState.CONNECTED,
-                                          path=path)
-            self._fire_watches([parents[-1]], event)
+        # Fire off child notifications that this node was created.
         if parents:
             event = k_states.WatchedEvent(type=k_states.EventType.CHILD,
                                           state=k_states.KeeperState.CONNECTED,
                                           path=path)
-            self._fire_watches(parents[0:-1], event)
+            self._fire_watches(parents, event, self._child_watches)
+        # Fire off data notifications that this node was created.
+        if created:
+            event = k_states.WatchedEvent(type=k_states.EventType.CREATED,
+                                          state=k_states.KeeperState.CONNECTED,
+                                          path=path)
+            self._fire_watches([path], event, self._data_watches)
         return path
 
     def create_async(self, path, value=b"", acl=None,
@@ -193,7 +199,7 @@ class FakeClient(object):
         except KeyError:
             raise k_exceptions.NoNodeError("No path %s" % (path))
         if watch:
-            self._watches[path].append(watch)
+            self._data_watches[path].append(watch)
         return (node['data'], self._make_znode(path, node))
 
     def get_async(self, path, watch=None):
@@ -231,9 +237,9 @@ class FakeClient(object):
         try:
             exists = bool(self.get(path)[1])
         except k_exceptions.NoNodeError:
-            exists = False
+            exists = None
         if watch:
-            self._watches[path].append(watch)
+            self._data_watches[path].append(watch)
         return exists
 
     def exists_async(self, path, watch=None):
@@ -269,11 +275,7 @@ class FakeClient(object):
         event = k_states.WatchedEvent(type=k_states.EventType.CHANGED,
                                       state=k_states.KeeperState.CONNECTED,
                                       path=path)
-        self._fire_watches([path], event)
-        event = k_states.WatchedEvent(type=k_states.EventType.CHILD,
-                                      state=k_states.KeeperState.CONNECTED,
-                                      path=path)
-        self._fire_watches(parents, event)
+        self._fire_watches([path], event, self._data_watches)
         return stat
 
     def set_async(self, path, value, version=-1):
@@ -290,7 +292,7 @@ class FakeClient(object):
         path = k_paths.normpath(path)
         paths = self.storage.get_children(path)
         if watch:
-            self._watches[path].append(watch)
+            self._child_watches[path].append(watch)
         if include_data:
             children_with_data = []
             for (p, data) in six.iteritems(paths):
@@ -313,7 +315,8 @@ class FakeClient(object):
             self._fire_state_change(k_states.KazooState.LOST)
             self.handler.stop()
             self._listeners.clear()
-            self._watches.clear()
+            self._child_watches.clear()
+            self._data_watches.clear()
             self._connected = False
 
     def delete(self, path, recursive=False):
@@ -327,17 +330,35 @@ class FakeClient(object):
                 raise k_exceptions.NoNodeError("No path %s" % (path))
             if recursive:
                 paths = [path]
-                for p in six.iterkeys(self.storage.get_children(path)):
+                for p in six.iterkeys(self.storage.get_parents(path)):
                     paths.append(p)
             else:
+                children = self.storage.get_children(path)
+                if children:
+                    raise k_exceptions.NotEmptyError("Path %s is not-empty"
+                                                     % (path))
                 paths = [path]
-            for p in reversed(sorted(paths)):
+            paths = list(reversed(sorted(set(paths))))
+            for p in paths:
                 self.storage.pop(p)
+            parents = []
+            for p in paths:
+                parents.extend(self.storage.get_parents(p))
+            parents = list(reversed(sorted(set(parents))))
+            # Fire off parent notifications that these paths were removed.
+            for p in parents:
                 event = k_states.WatchedEvent(
                     type=k_states.EventType.DELETED,
                     state=k_states.KeeperState.CONNECTED,
                     path=p)
-                self._fire_watches([p], event)
+                self._fire_watches([p], event, self._child_watches)
+            # Fire off data notifications that these paths were removed.
+            for p in paths:
+                event = k_states.WatchedEvent(
+                            type=k_states.EventType.DELETED,
+                            state=k_states.KeeperState.CONNECTED,
+                            path=p)
+                self._fire_watches([p], event, self._data_watches)
             return True
 
     def delete_async(self, path, recursive=False):
@@ -353,9 +374,9 @@ class FakeClient(object):
     def remove_listener(self, listener):
         self._listeners.discard(listener)
 
-    def _fire_watches(self, paths, event):
+    def _fire_watches(self, paths, event, watch_source):
         for p in reversed(sorted(set(paths))):
-            watches = list(self._watches.pop(p, []))
+            watches = list(watch_source.pop(p, []))
             for w in watches:
                 self.handler.dispatch_callback(_make_cb(w, [event]))
 
