@@ -228,11 +228,13 @@ class FakeClient(object):
         self.verify()
         if not isinstance(path, six.string_types):
             raise TypeError("path must be a string")
-
         try:
-            return self.get(path, watch=watch)[1]
+            exists = bool(self.get(path)[1])
         except k_exceptions.NoNodeError:
-            return None
+            exists = False
+        if watch:
+            self._watches[path].append(watch)
+        return exists
 
     def exists_async(self, path, watch=None):
         return self._generate_async(self.exists, path, watch=watch)
