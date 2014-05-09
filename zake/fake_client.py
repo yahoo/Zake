@@ -129,8 +129,15 @@ class FakeClient(object):
         are empty. This is useful to make sure that all watchers and callbacks
         have settled before performing further operations.
         """
-        while not all([self.handler.completion_queue.empty(),
-                       self.handler.callback_queue.empty()]):
+        def empty():
+            if hasattr(self.handler, 'completion_queue'):
+                if not self.handler.completion_queue.empty():
+                    return False
+            if hasattr(self.handler, 'callback_queue'):
+                if not self.handler.callback_queue.empty():
+                    return False
+            return True
+        while not empty():
             time.sleep(delay)
 
     def flush(self):
