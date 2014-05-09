@@ -202,6 +202,18 @@ class FakeClient(object):
             self._data_watches[path].append(watch)
         return (node['data'], self._make_znode(path, node))
 
+    def set_acls(self, path, acls, version=-1):
+        raise NotImplementedError("Acl support not implemented")
+
+    def set_acls_async(self, path, acls, version=-1):
+        raise NotImplementedError("Acl support not implemented")
+
+    def get_acls_async(self, path):
+        raise NotImplementedError("Acl support not implemented")
+
+    def get_acls(self, path):
+        raise NotImplementedError("Acl support not implemented")
+
     def get_async(self, path, watch=None):
         return self._generate_async(self.get, path, watch=watch)
 
