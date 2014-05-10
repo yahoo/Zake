@@ -60,6 +60,10 @@ class TestClient(test.Test):
             version = ".".join([str(s) for s in fake_client.SERVER_VERSION])
             self.assertIn(version, stats)
 
+    def test_command_empty_version(self):
+        self.assertRaises(ValueError, fake_client.FakeClient,
+                          server_version=[])
+
     def test_command_custom_version(self):
         client = fake_client.FakeClient(server_version=(1, 1, 1))
         with start_close(client) as c:

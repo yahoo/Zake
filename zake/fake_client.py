@@ -84,7 +84,7 @@ class FakeClient(object):
             self.storage = fs.FakeStorage(lock=self.handler.rlock_object())
         self._lock = self.handler.rlock_object()
         self._connected = False
-        if not server_version:
+        if server_version is None:
             self._server_version = SERVER_VERSION
         else:
             self._server_version = tuple(server_version)
