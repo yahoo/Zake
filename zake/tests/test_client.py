@@ -63,6 +63,18 @@ class TestClient(test.Test):
             self.assertEqual(fake_client.SERVER_VERSION,
                              c.server_version())
 
+    def test_make_path(self):
+        with start_close(self.client) as c:
+            c.create("/a/b/c", makepath=True)
+            self.assertTrue(c.exists("/a/b/c"))
+            self.assertTrue(c.exists("/a/b"))
+            self.assertTrue(c.exists("/a"))
+
+    def test_no_make_path(self):
+        with start_close(self.client) as c:
+            self.assertRaises(k_exceptions.KazooException,
+                              c.create, "/a/b/c")
+
     def test_sequence(self):
         with start_close(self.client) as c:
             path = c.create("/", sequence=True)

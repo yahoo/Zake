@@ -161,7 +161,7 @@ class FakeClient(object):
             time.sleep(0.001)
 
     def create(self, path, value=b"", acl=None,
-               ephemeral=False, sequence=False):
+               ephemeral=False, sequence=False, makepath=False):
         self.verify()
         if not isinstance(path, six.string_types):
             raise TypeError("path must be a string")
@@ -169,6 +169,11 @@ class FakeClient(object):
             raise TypeError("value must be a byte string")
         if acl:
             raise NotImplementedError("ACL not currently supported")
+
+        if makepath:
+            for p in utils.partition_path(path)[0:-1]:
+                if not self.exists(p):
+                    self.create(p)
 
         created, parents, path = self.storage.create(path,
                                                      value=value,
