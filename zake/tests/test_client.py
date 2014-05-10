@@ -195,27 +195,34 @@ class TestClient(test.Test):
 
         def one_time_collector_func(children):
             updates.extend(children)
-            ev.set()
             if children:
+                ev.set()
                 return False
 
         with start_close(self.client) as c:
             k_watchers.ChildrenWatch(self.client, "/",
                                      func=one_time_collector_func)
-            ev.wait()
-            ev.clear()
             c.ensure_path("/b")
             ev.wait()
 
         self.assertEqual(['b'], list(updates))
 
-        ev.clear()
-        k_watchers.ChildrenWatch(self.client, "/b",
-                                 func=one_time_collector_func)
-        updates.clear()
+    def test_child_child_watch(self):
+        updates = collections.deque()
+        ev = threading.Event()
+
+        def one_time_collector_func(children):
+            updates.extend(children)
+            if children:
+                ev.set()
+                return False
+
         with start_close(self.client) as c:
+            k_watchers.ChildrenWatch(self.client, "/b",
+                                     func=one_time_collector_func)
             c.ensure_path("/b/c")
             ev.wait()
+
         self.assertEqual(['c'], list(updates))
 
     def test_create_async(self):
