@@ -195,10 +195,10 @@ class FakeClient(object):
         return path
 
     def create_async(self, path, value=b"", acl=None,
-                     ephemeral=False, sequence=False):
+                     ephemeral=False, sequence=False, makepath=False):
         return self._generate_async(self.create, path, value=value,
                                     acl=acl, ephemeral=ephemeral,
-                                    sequence=sequence)
+                                    sequence=sequence, makepath=makepath)
 
     def _make_znode(self, path, node):
         child_count = len(self.get_children(path))
