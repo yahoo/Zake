@@ -17,6 +17,7 @@
 #    under the License.
 
 import collections
+import functools
 import logging
 import time
 
@@ -27,6 +28,7 @@ from kazoo import exceptions as k_exceptions
 from kazoo.handlers import threading as k_threading
 from kazoo.protocol import paths as k_paths
 from kazoo.protocol import states as k_states
+from kazoo.recipe import watchers as k_watchers
 
 from zake import fake_storage as fs
 from zake import utils
@@ -86,6 +88,9 @@ class FakeClient(object):
                 raise ValueError("Non-empty server version expected")
         self.expired = False
         self.logger = LOG
+        # Helper objects that makes these easier to create.
+        self.ChildrenWatch = functools.partial(k_watchers.ChildrenWatch, self)
+        self.DataWatch = functools.partial(k_watchers.DataWatch, self)
 
     def command(self, cmd=b'ruok'):
         self.verify()
