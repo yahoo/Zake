@@ -49,7 +49,7 @@ def _make_cb(func, args, type=''):
 
 
 class SequentialThreadingHandler(k_threading.SequentialThreadingHandler):
-    def __init__(self, spawn_workers=1):
+    def __init__(self, spawn_workers):
         super(SequentialThreadingHandler, self).__init__()
         self._spawner = futures.ThreadPoolExecutor(max_workers=spawn_workers)
 
@@ -66,7 +66,9 @@ class FakeClient(object):
     testing frameworks (while in use and after the fact).
     """
 
-    def __init__(self, handler=None, storage=None, server_version=None):
+    def __init__(self, handler=None,
+                 storage=None, server_version=None,
+                 handler_spawn_workers=1):
         self._listeners = set()
         self._child_watches = collections.defaultdict(list)
         self._data_watches = collections.defaultdict(list)
@@ -74,7 +76,7 @@ class FakeClient(object):
             self.handler = handler
             self._stop_handler = False
         else:
-            self.handler = SequentialThreadingHandler()
+            self.handler = SequentialThreadingHandler(handler_spawn_workers)
             self._stop_handler = True
         if storage is not None:
             self.storage = storage
