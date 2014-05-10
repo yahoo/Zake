@@ -358,13 +358,15 @@ class FakeClient(object):
                 raise k_exceptions.NoNodeError("No path %s" % (path))
             if recursive:
                 paths = [path]
-                for p in six.iterkeys(self.storage.get_parents(path)):
+                children = self.storage.get_children(path, only_direct=False)
+                for p in six.iterkeys(children):
                     paths.append(p)
             else:
-                children = self.storage.get_children(path)
+                children = self.storage.get_children(path, only_direct=False)
                 if children:
                     raise k_exceptions.NotEmptyError("Path %s is not-empty"
-                                                     % (path))
+                                                     " (%s children exist)"
+                                                     % (path, len(children)))
                 paths = [path]
             paths = list(reversed(sorted(set(paths))))
             for p in paths:

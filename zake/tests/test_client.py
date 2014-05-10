@@ -138,19 +138,35 @@ class TestClient(test.Test):
         with start_close(self.client) as c:
             k_watchers.DataWatch(self.client, "/b", func=notify_me)
             c.ensure_path("/b")
-            c.flush()
+            c.wait()
             c.set("/b", b"1")
-            c.flush()
+            c.wait()
             c.set("/b", b"2")
-            c.flush()
+            c.wait()
 
         self.assertEqual(4, len(updates))
 
         with start_close(self.client) as c:
             c.delete("/b")
-            c.flush()
+            c.wait()
 
         self.assertEqual(5, len(updates))
+
+    def test_recursive_delete(self):
+        with start_close(self.client) as c:
+            c.ensure_path("/b/c/d/e")
+            c.ensure_path("/b/e/f/g")
+            c.ensure_path("/b/123/abc")
+            c.ensure_path("/a")
+            c.delete("/b", recursive=True)
+            self.assertTrue(c.get("/a"))
+            self.assertEqual(2, len(c.storage.paths))
+
+    def test_child_left_delete(self):
+        with start_close(self.client) as c:
+            c.ensure_path("/b/c/d/e")
+            self.assertRaises(k_exceptions.NotEmptyError, c.delete,
+                              "/b", recursive=False)
 
     def test_child_watch(self):
         updates = collections.deque()
@@ -163,7 +179,7 @@ class TestClient(test.Test):
                                  func=one_time_collector_func)
         with start_close(self.client) as c:
             c.ensure_path("/b")
-            c.flush()
+            c.wait()
 
         self.assertEquals(['b'], list(updates))
 
@@ -172,5 +188,5 @@ class TestClient(test.Test):
         updates.clear()
         with start_close(self.client) as c:
             c.ensure_path("/b/c")
-            c.flush()
+            c.wait()
         self.assertEquals(['c'], list(updates))
