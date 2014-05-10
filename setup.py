@@ -34,6 +34,7 @@ setup(
         'kazoo',
         'six',
         'testtools',
+        'futures',
     ],
     classifiers=[
         "Development Status :: 4 - Beta",

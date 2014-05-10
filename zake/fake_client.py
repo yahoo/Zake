@@ -20,6 +20,7 @@ import collections
 import logging
 import time
 
+from concurrent import futures
 import six
 
 from kazoo import exceptions as k_exceptions
@@ -43,6 +44,15 @@ def _make_cb(func, args, type=''):
     return k_states.Callback(type=type, func=func, args=args)
 
 
+class SequentialThreadingHandler(k_threading.SequentialThreadingHandler):
+    def __init__(self, spawn_workers=1):
+        super(SequentialThreadingHandler, self).__init__()
+        self._spawner = futures.ThreadPoolExecutor(max_workers=spawn_workers)
+
+    def spawn(self, func, *args, **kwargs):
+        return self._spawner.submit(func, *args, **kwargs)
+
+
 class FakeClient(object):
     """A fake mostly functional/good enough kazoo compat. client
 
@@ -58,8 +68,10 @@ class FakeClient(object):
         self._data_watches = collections.defaultdict(list)
         if handler:
             self.handler = handler
+            self._stop_handler = False
         else:
-            self.handler = k_threading.SequentialThreadingHandler()
+            self.handler = SequentialThreadingHandler()
+            self._stop_handler = True
         if storage is not None:
             self.storage = storage
         else:
@@ -325,7 +337,8 @@ class FakeClient(object):
             if not self._connected:
                 return
             self._fire_state_change(k_states.KazooState.LOST)
-            self.handler.stop()
+            if self._stop_handler:
+                self.handler.stop()
             self._listeners.clear()
             self._child_watches.clear()
             self._data_watches.clear()
