@@ -53,6 +53,20 @@ class TestClient(test.Test):
             self.client.command('kill')
             self.assertFalse(c.connected)
 
+    def test_command_version(self):
+        with start_close(self.client) as c:
+            stats = c.command('stat')
+            self.assertIn("standalone", stats)
+            version = ".".join([str(s) for s in fake_client.SERVER_VERSION])
+            self.assertIn(version, stats)
+
+    def test_command_custom_version(self):
+        client = fake_client.FakeClient(server_version=(1, 1, 1))
+        with start_close(client) as c:
+            stats = c.command('stat')
+            self.assertIn("standalone", stats)
+            self.assertIn('1.1.1', stats)
+
     def test_root(self):
         with start_close(self.client) as c:
             self.assertTrue(c.exists("/"))

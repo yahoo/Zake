@@ -101,7 +101,7 @@ class FakeClient(object):
         if cmd == 'ruok':
             return 'imok'
         if cmd == 'stat':
-            server_version = ".".join([str(s) for s in SERVER_VERSION])
+            server_version = ".".join([str(s) for s in self._server_version])
             return "\n".join(['Zake the fake version: %s' % (version.VERSION),
                               'Mimicked version: %s' % (server_version),
                               'Mode: standalone'])
