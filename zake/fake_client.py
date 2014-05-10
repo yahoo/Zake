@@ -259,7 +259,7 @@ class FakeClient(object):
     def _generate_async(self, func, *args, **kwargs):
         async_result = self.handler.async_result()
 
-        def run():
+        def call(func, args, kwargs):
             try:
                 result = func(*args, **kwargs)
                 async_result.set(result)
@@ -267,7 +267,8 @@ class FakeClient(object):
             except Exception as exc:
                 async_result.set_exception(exc)
 
-        self.handler.dispatch_callback(_make_cb(run, []))
+        cb = _make_cb(call, [func, args, kwargs], type='async')
+        self.handler.dispatch_callback(cb)
         return async_result
 
     def exists(self, path, watch=None):
