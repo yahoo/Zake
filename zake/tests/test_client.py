@@ -18,6 +18,7 @@
 
 import collections
 import contextlib
+import threading
 
 from kazoo import exceptions as k_exceptions
 from kazoo.recipe import watchers as k_watchers
@@ -131,24 +132,32 @@ class TestClient(test.Test):
 
     def test_data_watch(self):
         updates = collections.deque()
+        ev = threading.Event()
 
         def notify_me(data, stat):
             updates.append((data, stat))
+            ev.set()
 
         with start_close(self.client) as c:
             k_watchers.DataWatch(self.client, "/b", func=notify_me)
+            ev.wait()
+            ev.clear()
             c.ensure_path("/b")
-            c.wait()
+            ev.wait()
+            ev.clear()
             c.set("/b", b"1")
-            c.wait()
+            ev.wait()
+            ev.clear()
             c.set("/b", b"2")
-            c.wait()
+            ev.wait()
+            ev.clear()
 
         self.assertEqual(4, len(updates))
 
+        ev.clear()
         with start_close(self.client) as c:
             c.delete("/b")
-            c.wait()
+            ev.wait()
 
         self.assertEqual(5, len(updates))
 
@@ -170,23 +179,29 @@ class TestClient(test.Test):
 
     def test_child_watch(self):
         updates = collections.deque()
+        ev = threading.Event()
 
         def one_time_collector_func(children):
             updates.extend(children)
-            return False
+            ev.set()
+            if children:
+                return False
 
-        k_watchers.ChildrenWatch(self.client, "/",
-                                 func=one_time_collector_func)
         with start_close(self.client) as c:
+            k_watchers.ChildrenWatch(self.client, "/",
+                                     func=one_time_collector_func)
+            ev.wait()
+            ev.clear()
             c.ensure_path("/b")
-            c.wait()
+            ev.wait()
 
         self.assertEquals(['b'], list(updates))
 
+        ev.clear()
         k_watchers.ChildrenWatch(self.client, "/b",
                                  func=one_time_collector_func)
         updates.clear()
         with start_close(self.client) as c:
             c.ensure_path("/b/c")
-            c.wait()
+            ev.wait()
         self.assertEquals(['c'], list(updates))
