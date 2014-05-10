@@ -217,3 +217,40 @@ class TestClient(test.Test):
             c.ensure_path("/b/c")
             ev.wait()
         self.assertEqual(['c'], list(updates))
+
+    def test_create_async(self):
+        with start_close(self.client) as c:
+            r = c.create_async("/b")
+            self.assertEqual("/b", r.get())
+            self.assertTrue(r.successful())
+            self.assertIsNone(r.exception)
+
+    def test_create_async_linked(self):
+        traces = collections.deque()
+        ev = threading.Event()
+
+        def add_trace(result):
+            traces.append(result)
+            ev.set()
+
+        with start_close(self.client) as c:
+            r = c.create_async("/b")
+            r.rawlink(add_trace)
+            self.assertEqual("/b", r.get())
+            ev.wait()
+
+        self.assertEqual(1, len(traces))
+        self.assertEqual(r, traces[0])
+
+    def test_create_async_exception(self):
+        ev = threading.Event()
+
+        def wait_for(result):
+            ev.set()
+
+        with start_close(self.client) as c:
+            r = c.create_async("/b/c/d")
+            r.rawlink(wait_for)
+            ev.wait()
+            self.assertFalse(r.successful())
+            self.assertIsNotNone(r.exception)
