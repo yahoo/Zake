@@ -292,7 +292,6 @@ class FakeClient(object):
                 self.storage[path]['version'] += 1
             except KeyError:
                 raise k_exceptions.NoNodeError("No path %s" % (path))
-            parents = sorted(six.iterkeys(self.storage.get_parents(path)))
             (_data, stat) = self.get(path)
 
         # Fire any attached watches.
@@ -382,9 +381,9 @@ class FakeClient(object):
             # Fire off data notifications that these paths were removed.
             for p in paths:
                 event = k_states.WatchedEvent(
-                            type=k_states.EventType.DELETED,
-                            state=k_states.KeeperState.CONNECTED,
-                            path=p)
+                    type=k_states.EventType.DELETED,
+                    state=k_states.KeeperState.CONNECTED,
+                    path=p)
                 self._fire_watches([p], event, self._data_watches)
             return True
 

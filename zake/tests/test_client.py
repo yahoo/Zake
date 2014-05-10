@@ -195,7 +195,7 @@ class TestClient(test.Test):
             c.ensure_path("/b")
             ev.wait()
 
-        self.assertEquals(['b'], list(updates))
+        self.assertEqual(['b'], list(updates))
 
         ev.clear()
         k_watchers.ChildrenWatch(self.client, "/b",
@@ -204,4 +204,4 @@ class TestClient(test.Test):
         with start_close(self.client) as c:
             c.ensure_path("/b/c")
             ev.wait()
-        self.assertEquals(['c'], list(updates))
+        self.assertEqual(['c'], list(updates))
