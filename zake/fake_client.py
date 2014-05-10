@@ -41,6 +41,8 @@ LOG = logging.getLogger(__name__)
 # differently).
 SERVER_VERSION = (3, 4, 0)
 
+_NO_ACL_MSG = "ACLs not currently supported"
+
 
 def _make_cb(func, args, type=''):
     return k_states.Callback(type=type, func=func, args=args)
@@ -168,7 +170,7 @@ class FakeClient(object):
         if not isinstance(value, six.binary_type):
             raise TypeError("value must be a byte string")
         if acl:
-            raise NotImplementedError("ACL not currently supported")
+            raise NotImplementedError(_NO_ACL_MSG)
 
         if makepath:
             for p in utils.partition_path(path)[0:-1]:
@@ -225,16 +227,16 @@ class FakeClient(object):
         return (node['data'], self._make_znode(path, node))
 
     def set_acls(self, path, acls, version=-1):
-        raise NotImplementedError("Acl support not implemented")
+        raise NotImplementedError(_NO_ACL_MSG)
 
     def set_acls_async(self, path, acls, version=-1):
-        raise NotImplementedError("Acl support not implemented")
+        raise NotImplementedError(_NO_ACL_MSG)
 
     def get_acls_async(self, path):
-        raise NotImplementedError("Acl support not implemented")
+        raise NotImplementedError(_NO_ACL_MSG)
 
     def get_acls(self, path):
-        raise NotImplementedError("Acl support not implemented")
+        raise NotImplementedError(_NO_ACL_MSG)
 
     def get_async(self, path, watch=None):
         return self._generate_async(self.get, path, watch=watch)
