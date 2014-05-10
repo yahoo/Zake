@@ -246,6 +246,10 @@ class FakeClient(object):
                 self._connected = True
                 self._fire_state_change(k_states.KazooState.CONNECTED)
 
+    def restart(self):
+        self.stop()
+        self.start()
+
     def _fire_state_change(self, state):
         for func in self._listeners:
             self.handler.dispatch_callback(_make_cb(func, [state]))
