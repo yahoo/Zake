@@ -438,6 +438,9 @@ class FakeClient(object):
             except k_exceptions.NodeExistsError:
                 pass
 
+    def ensure_path_async(self, path):
+        return self._generate_async(self.ensure_path, path)
+
     def close(self):
         self._connected = False
 
