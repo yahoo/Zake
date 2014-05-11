@@ -86,6 +86,20 @@ class FakeStorage(object):
         with self.lock:
             return dict(self._sequences)
 
+    def set(self, path, value, version=-1):
+        with self.lock:
+            if version != -1:
+                stat = self.get(path)[1]
+                if stat.version != version:
+                    raise k_exceptions.BadVersionError("Version mismatch %s "
+                                                       "!= %s" % (stat.version,
+                                                                  version))
+            else:
+                self._paths[path]['data'] = value
+                self._paths[path]['updated_on'] = utils.millitime()
+                self._paths[path]['version'] += 1
+            return self.get(path)[1]
+
     def create(self, path, value=b"", sequence=False):
         parent_path, _node_name = _split_path(path)
         if sequence:
@@ -122,15 +136,7 @@ class FakeStorage(object):
                 raise k_exceptions.BadArgumentsError("Can not delete '/'")
             self._paths.pop(path)
 
-    def __setitem__(self, path, value):
-        with self.lock:
-            self._paths[path] = value
-
-    def __getitem__(self, path):
-        with self.lock:
-            return self._paths[path]
-
-    def fetch(self, path):
+    def get(self, path):
         with self.lock:
             node = self._paths[path]
             children_count = len(self.get_children(path))

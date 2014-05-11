@@ -209,7 +209,7 @@ class FakeClient(object):
             raise TypeError("path must be a string")
         path = k_paths.normpath(path)
         try:
-            (data, znode) = self.storage.fetch(path)
+            (data, znode) = self.storage.get(path)
         except KeyError:
             raise k_exceptions.NoNodeError("No path %s" % (path))
         if watch:
@@ -287,20 +287,10 @@ class FakeClient(object):
             raise TypeError("version must be an int")
 
         path = k_paths.normpath(path)
-        with self.storage.lock:
-            if version != -1:
-                (_data, stat) = self.get(path)
-                if stat and stat.version != version:
-                    raise k_exceptions.BadVersionError("Version mismatch %s "
-                                                       "!= %s" % (stat.version,
-                                                                  version))
-            try:
-                self.storage[path]['data'] = value
-                self.storage[path]['updated_on'] = utils.millitime()
-                self.storage[path]['version'] += 1
-            except KeyError:
-                raise k_exceptions.NoNodeError("No path %s" % (path))
-            (_data, stat) = self.get(path)
+        try:
+            stat = self.storage.set(path, value, version=version)
+        except KeyError:
+            raise k_exceptions.NoNodeError("No path %s" % (path))
 
         # Fire any attached watches.
         event = k_states.WatchedEvent(type=k_states.EventType.CHANGED,
