@@ -86,6 +86,14 @@ class FakeStorage(object):
         with self.lock:
             return dict(self._sequences)
 
+    def __getitem__(self, path):
+        with self.lock:
+            return self._paths[path]
+
+    def __setitem__(self, path, value):
+        with self.lock:
+            self._paths[path] = value
+
     def set(self, path, value, version=-1):
         with self.lock:
             if version != -1:
