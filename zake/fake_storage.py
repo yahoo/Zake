@@ -24,7 +24,6 @@ import six
 from zake import utils
 
 from kazoo import exceptions as k_exceptions
-from kazoo.protocol import paths as k_paths
 
 
 # See: https://issues.apache.org/jira/browse/ZOOKEEPER-243
@@ -74,7 +73,6 @@ class FakeStorage(object):
             return dict(self._sequences)
 
     def create(self, path, value=b"", sequence=False):
-        path = k_paths.normpath(path)
         parent_path, _node_name = _split_path(path)
         if sequence:
             with self.lock:

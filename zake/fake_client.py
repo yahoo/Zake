@@ -174,6 +174,7 @@ class FakeClient(object):
         if acl:
             raise NotImplementedError(_NO_ACL_MSG)
 
+        path = k_paths.normpath(path)
         if makepath:
             for p in utils.partition_path(path)[0:-1]:
                 if not self.exists(p):
@@ -220,6 +221,7 @@ class FakeClient(object):
         self.verify()
         if not isinstance(path, six.string_types):
             raise TypeError("path must be a string")
+        path = k_paths.normpath(path)
         try:
             node = self.storage[path]
         except KeyError:
@@ -277,6 +279,7 @@ class FakeClient(object):
         self.verify()
         if not isinstance(path, six.string_types):
             raise TypeError("path must be a string")
+        path = k_paths.normpath(path)
         try:
             exists = bool(self.get(path)[1])
         except k_exceptions.NoNodeError:
