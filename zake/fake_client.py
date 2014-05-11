@@ -203,32 +203,18 @@ class FakeClient(object):
                                     acl=acl, ephemeral=ephemeral,
                                     sequence=sequence, makepath=makepath)
 
-    def _make_znode(self, path, node):
-        child_count = len(self.get_children(path))
-        return k_states.ZnodeStat(czxid=node['version'],
-                                  mzxid=node['version'],
-                                  pzxid=node['version'],
-                                  ctime=node['created_on'],
-                                  mtime=node['updated_on'],
-                                  version=node['version'],
-                                  aversion=node['cversion'],
-                                  cversion=node['aversion'],
-                                  ephemeralOwner=-1,
-                                  dataLength=len(node['data']),
-                                  numChildren=child_count)
-
     def get(self, path, watch=None):
         self.verify()
         if not isinstance(path, six.string_types):
             raise TypeError("path must be a string")
         path = k_paths.normpath(path)
         try:
-            node = self.storage[path]
+            (data, znode) = self.storage.fetch(path)
         except KeyError:
             raise k_exceptions.NoNodeError("No path %s" % (path))
         if watch:
             self._data_watches[path].append(watch)
-        return (node['data'], self._make_znode(path, node))
+        return (data, znode)
 
     def set_acls(self, path, acls, version=-1):
         raise NotImplementedError(_NO_ACL_MSG)

@@ -24,6 +24,7 @@ import six
 from zake import utils
 
 from kazoo import exceptions as k_exceptions
+from kazoo.protocol import states as k_states
 
 
 # See: https://issues.apache.org/jira/browse/ZOOKEEPER-243
@@ -61,6 +62,19 @@ class FakeStorage(object):
                 'cversion': -1,
                 'data': b"",
             }
+
+    def _make_znode(self, node, child_count):
+        return k_states.ZnodeStat(czxid=node['version'],
+                                  mzxid=node['version'],
+                                  pzxid=node['version'],
+                                  ctime=node['created_on'],
+                                  mtime=node['updated_on'],
+                                  version=node['version'],
+                                  aversion=node['cversion'],
+                                  cversion=node['aversion'],
+                                  ephemeralOwner=-1,
+                                  dataLength=len(node['data']),
+                                  numChildren=child_count)
 
     @property
     def paths(self):
@@ -115,6 +129,12 @@ class FakeStorage(object):
     def __getitem__(self, path):
         with self.lock:
             return self._paths[path]
+
+    def fetch(self, path):
+        with self.lock:
+            node = self._paths[path]
+            children_count = len(self.get_children(path))
+            return (node['data'], self._make_znode(node, children_count))
 
     def __contains__(self, path):
         with self.lock:
