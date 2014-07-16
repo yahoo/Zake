@@ -436,6 +436,10 @@ class FakeClient(object):
         self._connected = False
 
 
+class StopTransaction(Exception):
+    pass
+
+
 class FakeTransactionRequest(object):
     def __init__(self, client):
         self.client = client
@@ -446,7 +450,20 @@ class FakeTransactionRequest(object):
         self.operations.append((self.client.delete, [path, version]))
 
     def check(self, path, version):
-        raise NotImplementedError("Check not currently supported")
+        if not isinstance(path, six.string_types):
+            raise TypeError("path must be a string")
+        if not isinstance(version, int):
+            raise TypeError("version must be an int")
+
+        def apply_check(path, version):
+            try:
+                data = self.client.storage[path]
+                if data['version'] != version:
+                    raise StopTransaction()
+            except KeyError:
+                raise StopTransaction()
+
+        self.operations.append((apply_check, [path, version]))
 
     def set_data(self, path, value, version=-1):
         self.operations.append((self.client.set, [path, value, version]))
@@ -459,13 +476,24 @@ class FakeTransactionRequest(object):
     def commit(self):
         if self.committed:
             raise ValueError('Transaction already committed')
-        self.committed = True
-        results = []
         with self.client.storage.lock:
             self.client.verify()
+            results = []
+            failed = False
+            # Currently we aren't undoing things, that's ok for now, but it
+            # can leave the storage in a bad state when things go wrong...
             for (f, args) in self.operations:
-                results.append(f(*args))
-            return results
+                try:
+                    results.append(f(*args))
+                except StopTransaction:
+                    failed = True
+                    break
+            if failed:
+                self.committed = False
+                return []
+            else:
+                self.committed = True
+                return results
 
     def __enter__(self):
         return self
