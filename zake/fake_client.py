@@ -213,7 +213,8 @@ class FakeClient(object):
         except KeyError:
             raise k_exceptions.NoNodeError("No path %s" % (path))
         if watch:
-            self._data_watches[path].append(watch)
+            with self._lock:
+                self._data_watches[path].append(watch)
         return (data, znode)
 
     def set_acls(self, path, acls, version=-1):
@@ -243,7 +244,9 @@ class FakeClient(object):
         self.start()
 
     def _fire_state_change(self, state):
-        for func in self._listeners:
+        with self._lock:
+            listeners = list(self._listeners)
+        for func in listeners:
             self.handler.dispatch_callback(_make_cb(func, [state]))
 
     def _generate_async(self, func, *args, **kwargs):
@@ -271,7 +274,8 @@ class FakeClient(object):
         except k_exceptions.NoNodeError:
             exists = None
         if watch:
-            self._data_watches[path].append(watch)
+            with self._lock:
+                self._data_watches[path].append(watch)
         return exists
 
     def exists_async(self, path, watch=None):
@@ -313,7 +317,8 @@ class FakeClient(object):
         path = k_paths.normpath(path)
         paths = self.storage.get_children(path)
         if watch:
-            self._child_watches[path].append(watch)
+            with self._lock:
+                self._child_watches[path].append(watch)
         if include_data:
             children_with_data = []
             for (p, data) in six.iteritems(paths):
@@ -389,18 +394,21 @@ class FakeClient(object):
         return self._generate_async(self.delete, path, recursive=recursive)
 
     def add_listener(self, listener):
-        self._listeners.add(listener)
+        with self._lock:
+            self._listeners.add(listener)
 
     def retry(self, func, *args, **kwargs):
         self.verify()
         return func(*args, **kwargs)
 
     def remove_listener(self, listener):
-        self._listeners.discard(listener)
+        with self._lock:
+            self._listeners.discard(listener)
 
     def _fire_watches(self, paths, event, watch_source):
         for p in reversed(sorted(set(paths))):
-            watches = list(watch_source.pop(p, []))
+            with self._lock:
+                watches = list(watch_source.pop(p, []))
             for w in watches:
                 self.handler.dispatch_callback(_make_cb(w, [event]))
 
