@@ -174,15 +174,16 @@ class FakeClient(object):
         if acl:
             raise NotImplementedError(_NO_ACL_MSG)
 
-        path = k_paths.normpath(path)
-        if makepath:
-            for p in utils.partition_path(path)[0:-1]:
-                if not self.exists(p):
-                    self.create(p)
+        with self.storage.lock:
+            path = k_paths.normpath(path)
+            if makepath:
+                for p in utils.partition_path(path)[0:-1]:
+                    if not self.exists(p):
+                        self.create(p)
+            created, parents, path = self.storage.create(path,
+                                                         value=value,
+                                                         sequence=sequence)
 
-        created, parents, path = self.storage.create(path,
-                                                     value=value,
-                                                     sequence=sequence)
         # Fire off child notifications that this node was created.
         if parents:
             event = k_states.WatchedEvent(type=k_states.EventType.CHILD,
