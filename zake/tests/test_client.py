@@ -160,6 +160,21 @@ class TestClient(test.Test):
             self.assertEqual(b'e', data)
             self.assertTrue(txn.committed)
 
+    def test_transaction_check(self):
+        with start_close(self.client) as c:
+            c.create("/b")
+            data, stat = c.get("/b")
+            with c.transaction() as txn:
+                txn.check("/e", 1)
+                txn.create("/c")
+            self.assertFalse(txn.committed)
+            self.assertFalse(c.exists("/c"))
+            with c.transaction() as txn:
+                txn.check("/b", stat.version)
+                txn.create("/c")
+            self.assertTrue(txn.committed)
+            self.assertTrue(c.exists("/c"))
+
     def test_data_watch(self):
         updates = collections.deque()
         ev = threading.Event()
