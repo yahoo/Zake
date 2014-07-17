@@ -85,6 +85,7 @@ class FakeClient(object):
         self._lock = self.handler.rlock_object()
         self._child_watches_lock = self.handler.rlock_object()
         self._data_watches_lock = self.handler.rlock_object()
+        self._listeners_lock = self.handler.rlock_object()
         self._connected = False
         if server_version is None:
             self._server_version = SERVER_VERSION
@@ -251,7 +252,7 @@ class FakeClient(object):
         self.start()
 
     def _fire_state_change(self, state):
-        with self._lock:
+        with self._listeners_lock:
             listeners = list(self._listeners)
         for func in listeners:
             self.handler.dispatch_callback(_make_cb(func, [state]))
@@ -407,7 +408,7 @@ class FakeClient(object):
         return self._generate_async(self.delete, path, recursive=recursive)
 
     def add_listener(self, listener):
-        with self._lock:
+        with self._listeners_lock:
             self._listeners.add(listener)
 
     def retry(self, func, *args, **kwargs):
@@ -415,7 +416,7 @@ class FakeClient(object):
         return func(*args, **kwargs)
 
     def remove_listener(self, listener):
-        with self._lock:
+        with self._listeners_lock:
             self._listeners.discard(listener)
 
     def _fire_watches(self, paths, event, watch_source, watch_mutate_lock):
