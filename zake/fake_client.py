@@ -17,8 +17,10 @@
 #    under the License.
 
 import collections
+import contextlib
 import functools
 import logging
+import sys
 import time
 
 from concurrent import futures
@@ -57,6 +59,112 @@ class SequentialThreadingHandler(k_threading.SequentialThreadingHandler):
         return self._spawner.submit(func, *args, **kwargs)
 
 
+class PartialClient(object):
+    def __init__(self, storage):
+        self.storage = storage
+
+    def delete(self, path, version=-1, recursive=False):
+        if not isinstance(path, six.string_types):
+            raise TypeError("path must be a string")
+        data_watches = []
+        child_watches = []
+        path = k_paths.normpath(path)
+        with self.storage.lock:
+            if path not in self.storage:
+                raise k_exceptions.NoNodeError("No path %s" % (path))
+            path_version = self.storage[path]['version']
+            if version != -1 and path_version != version:
+                raise k_exceptions.BadVersionError("Version mismatch"
+                                                   " (%s != %s)"
+                                                   % (version, path_version))
+
+            if recursive:
+                paths = [path]
+                children = self.storage.get_children(path, only_direct=False)
+                for p in six.iterkeys(children):
+                    paths.append(p)
+            else:
+                children = self.storage.get_children(path, only_direct=False)
+                if children:
+                    raise k_exceptions.NotEmptyError("Path %s is not-empty"
+                                                     " (%s children exist)"
+                                                     % (path, len(children)))
+                paths = [path]
+            paths = list(reversed(sorted(set(paths))))
+            for p in paths:
+                self.storage.pop(p)
+            parents = []
+            for p in paths:
+                parents.extend(self.storage.get_parents(p))
+            parents = list(reversed(sorted(set(parents))))
+            for p in parents:
+                event = k_states.WatchedEvent(
+                    type=k_states.EventType.DELETED,
+                    state=k_states.KeeperState.CONNECTED,
+                    path=p)
+                child_watches.append(([p], event))
+            for p in paths:
+                event = k_states.WatchedEvent(
+                    type=k_states.EventType.DELETED,
+                    state=k_states.KeeperState.CONNECTED,
+                    path=p)
+                data_watches.append(([p], event))
+        return (True, data_watches, child_watches)
+
+    def set(self, path, value, version=-1):
+        if not isinstance(path, six.string_types):
+            raise TypeError("path must be a string")
+        if not isinstance(value, six.binary_type):
+            raise TypeError("value must be a byte string")
+        if not isinstance(version, int):
+            raise TypeError("version must be an int")
+        path = k_paths.normpath(path)
+        try:
+            stat = self.storage.set(path, value, version=version)
+        except KeyError:
+            raise k_exceptions.NoNodeError("No path %s" % (path))
+        data_watches = []
+        child_watches = []
+        event = k_states.WatchedEvent(type=k_states.EventType.CHANGED,
+                                      state=k_states.KeeperState.CONNECTED,
+                                      path=path)
+        data_watches.append(([path], event))
+        return (stat, data_watches, child_watches)
+
+    def create(self, path, value=b"", acl=None,
+               ephemeral=False, sequence=False, makepath=False):
+        if not isinstance(path, six.string_types):
+            raise TypeError("path must be a string")
+        if not isinstance(value, six.binary_type):
+            raise TypeError("value must be a byte string")
+        if acl:
+            raise NotImplementedError(_NO_ACL_MSG)
+        data_watches = []
+        child_watches = []
+        with self.storage.lock:
+            path = k_paths.normpath(path)
+            if makepath:
+                for parent_path in utils.partition_path(path)[0:-1]:
+                    if not parent_path in self.storage:
+                        result = self.create(parent_path)
+                        data_watches.extend(result[1])
+                        child_watches.extend(result[2])
+            created, parents, path = self.storage.create(path,
+                                                         value=value,
+                                                         sequence=sequence)
+        if parents:
+            event = k_states.WatchedEvent(type=k_states.EventType.CHILD,
+                                          state=k_states.KeeperState.CONNECTED,
+                                          path=path)
+            child_watches.append((parents, event))
+        if created:
+            event = k_states.WatchedEvent(type=k_states.EventType.CREATED,
+                                          state=k_states.KeeperState.CONNECTED,
+                                          path=path)
+            data_watches.append(([path], event))
+        return (path, data_watches, child_watches)
+
+
 class FakeClient(object):
     """A fake mostly functional/good enough kazoo compat. client
 
@@ -82,7 +190,8 @@ class FakeClient(object):
             self.storage = storage
         else:
             self.storage = fs.FakeStorage(lock=self.handler.rlock_object())
-        self._lock = self.handler.rlock_object()
+        self._partial_client = PartialClient(self.storage)
+        self._open_close_lock = self.handler.rlock_object()
         self._child_watches_lock = self.handler.rlock_object()
         self._data_watches_lock = self.handler.rlock_object()
         self._listeners_lock = self.handler.rlock_object()
@@ -170,40 +279,12 @@ class FakeClient(object):
     def create(self, path, value=b"", acl=None,
                ephemeral=False, sequence=False, makepath=False):
         self.verify()
-        if not isinstance(path, six.string_types):
-            raise TypeError("path must be a string")
-        if not isinstance(value, six.binary_type):
-            raise TypeError("value must be a byte string")
-        if acl:
-            raise NotImplementedError(_NO_ACL_MSG)
-
-        with self.storage.lock:
-            path = k_paths.normpath(path)
-            if makepath:
-                for p in utils.partition_path(path)[0:-1]:
-                    if not self.exists(p):
-                        self.create(p)
-            created, parents, path = self.storage.create(path,
-                                                         value=value,
-                                                         sequence=sequence)
-
-        # Fire off child notifications that this node was created.
-        if parents:
-            event = k_states.WatchedEvent(type=k_states.EventType.CHILD,
-                                          state=k_states.KeeperState.CONNECTED,
-                                          path=path)
-            self._fire_watches(parents, event,
-                               self._child_watches,
-                               self._child_watches_lock)
-        # Fire off data notifications that this node was created.
-        if created:
-            event = k_states.WatchedEvent(type=k_states.EventType.CREATED,
-                                          state=k_states.KeeperState.CONNECTED,
-                                          path=path)
-            self._fire_watches([path], event,
-                               self._data_watches,
-                               self._data_watches_lock)
-        return path
+        result, data_watches, child_watches = self._partial_client.create(
+            path, value=value, acl=acl, ephemeral=ephemeral, sequence=sequence,
+            makepath=makepath)
+        self.fire_child_watches(child_watches)
+        self.fire_data_watches(data_watches)
+        return result
 
     def create_async(self, path, value=b"", acl=None,
                      ephemeral=False, sequence=False, makepath=False):
@@ -241,7 +322,7 @@ class FakeClient(object):
         return self._generate_async(self.get, path, watch=watch)
 
     def start(self, timeout=None):
-        with self._lock:
+        with self._open_close_lock:
             if not self._connected:
                 self.handler.start()
                 self._connected = True
@@ -291,27 +372,11 @@ class FakeClient(object):
 
     def set(self, path, value, version=-1):
         self.verify()
-        if not isinstance(path, six.string_types):
-            raise TypeError("path must be a string")
-        if not isinstance(value, six.binary_type):
-            raise TypeError("value must be a byte string")
-        if not isinstance(version, int):
-            raise TypeError("version must be an int")
-
-        path = k_paths.normpath(path)
-        try:
-            stat = self.storage.set(path, value, version=version)
-        except KeyError:
-            raise k_exceptions.NoNodeError("No path %s" % (path))
-
-        # Fire any attached watches.
-        event = k_states.WatchedEvent(type=k_states.EventType.CHANGED,
-                                      state=k_states.KeeperState.CONNECTED,
-                                      path=path)
-        self._fire_watches([path], event,
-                           self._data_watches,
-                           self._data_watches_lock)
-        return stat
+        result, data_watches, child_watches = self._partial_client.set(
+            path, value, version=version)
+        self.fire_child_watches(child_watches)
+        self.fire_data_watches(data_watches)
+        return result
 
     def set_async(self, path, value, version=-1):
         return self._generate_async(self.set, path, value, version=version)
@@ -321,7 +386,7 @@ class FakeClient(object):
         if not isinstance(path, six.string_types):
             raise TypeError("path must be a string")
 
-        def _clean(p):
+        def clean_path(p):
             return p.strip("/")
 
         path = k_paths.normpath(path)
@@ -332,12 +397,12 @@ class FakeClient(object):
         if include_data:
             children_with_data = []
             for (p, data) in six.iteritems(paths):
-                children_with_data.append(_clean(p[len(path):]), data)
+                children_with_data.append(clean_path(p[len(path):]), data)
             return children_with_data
         else:
             children = []
             for p in list(six.iterkeys(paths)):
-                children.append(_clean(p[len(path):]))
+                children.append(clean_path(p[len(path):]))
             return children
 
     def get_children_async(self, path, watch=None, include_data=False):
@@ -345,7 +410,7 @@ class FakeClient(object):
                                     watch=watch, include_data=include_data)
 
     def stop(self):
-        with self._lock:
+        with self._open_close_lock:
             if not self._connected:
                 return
             self._fire_state_change(k_states.KazooState.LOST)
@@ -356,53 +421,13 @@ class FakeClient(object):
             self._data_watches.clear()
             self._connected = False
 
-    def delete(self, path, recursive=False):
+    def delete(self, path, version=-1, recursive=False):
         self.verify()
-        if not isinstance(path, six.string_types):
-            raise TypeError("path must be a string")
-
-        path = k_paths.normpath(path)
-        with self.storage.lock:
-            if path not in self.storage:
-                raise k_exceptions.NoNodeError("No path %s" % (path))
-            if recursive:
-                paths = [path]
-                children = self.storage.get_children(path, only_direct=False)
-                for p in six.iterkeys(children):
-                    paths.append(p)
-            else:
-                children = self.storage.get_children(path, only_direct=False)
-                if children:
-                    raise k_exceptions.NotEmptyError("Path %s is not-empty"
-                                                     " (%s children exist)"
-                                                     % (path, len(children)))
-                paths = [path]
-            paths = list(reversed(sorted(set(paths))))
-            for p in paths:
-                self.storage.pop(p)
-            parents = []
-            for p in paths:
-                parents.extend(self.storage.get_parents(p))
-            parents = list(reversed(sorted(set(parents))))
-            # Fire off parent notifications that these paths were removed.
-            for p in parents:
-                event = k_states.WatchedEvent(
-                    type=k_states.EventType.DELETED,
-                    state=k_states.KeeperState.CONNECTED,
-                    path=p)
-                self._fire_watches([p], event,
-                                   self._child_watches,
-                                   self._child_watches_lock)
-            # Fire off data notifications that these paths were removed.
-            for p in paths:
-                event = k_states.WatchedEvent(
-                    type=k_states.EventType.DELETED,
-                    state=k_states.KeeperState.CONNECTED,
-                    path=p)
-                self._fire_watches([p], event,
-                                   self._data_watches,
-                                   self._data_watches_lock)
-            return True
+        result, data_watches, child_watches = self._partial_client.delete(
+            path, version=version, recursive=recursive)
+        self.fire_child_watches(child_watches)
+        self.fire_data_watches(data_watches)
+        return result
 
     def delete_async(self, path, recursive=False):
         return self._generate_async(self.delete, path, recursive=recursive)
@@ -419,12 +444,30 @@ class FakeClient(object):
         with self._listeners_lock:
             self._listeners.discard(listener)
 
+    def fire_child_watches(self, child_watches):
+        if not self.connected:
+            return
+        for (paths, event) in child_watches:
+            self._fire_watches(paths, event, self._child_watches,
+                               self._child_watches_lock)
+
+    def fire_data_watches(self, data_watches):
+        if not self.connected:
+            return
+        for (paths, event) in data_watches:
+            self._fire_watches(paths, event, self._data_watches,
+                               self._data_watches_lock)
+
     def _fire_watches(self, paths, event, watch_source, watch_mutate_lock):
-        for p in reversed(sorted(set(paths))):
+        dispatched = set()
+        for path in reversed(sorted(paths)):
+            if path in dispatched:
+                continue
             with watch_mutate_lock:
-                watches = list(watch_source.pop(p, []))
+                watches = list(watch_source.pop(path, []))
             for w in watches:
                 self.handler.dispatch_callback(_make_cb(w, [event]))
+            dispatched.add(path)
 
     def transaction(self):
         return FakeTransactionRequest(self)
@@ -433,12 +476,10 @@ class FakeClient(object):
         self.verify()
         if not isinstance(path, six.string_types):
             raise TypeError("path must be a string")
-
         path = k_paths.normpath(path)
-        path_pieces = utils.partition_path(path)
-        for p in path_pieces:
+        for piece in utils.partition_path(path):
             try:
-                self.create(p)
+                self.create(piece)
             except k_exceptions.NodeExistsError:
                 pass
 
@@ -453,63 +494,123 @@ class StopTransaction(Exception):
     pass
 
 
+class StopTransactionNoExists(StopTransaction):
+    pass
+
+
+class StopTransactionBadVersion(StopTransaction):
+    pass
+
+
+@contextlib.contextmanager
+def try_txn_lock(lock):
+    locked = lock.acquire(blocking=False)
+    if not locked:
+        raise RuntimeError("Transaction can not be concurrently modified")
+    try:
+         yield
+    finally:
+        lock.release()
+
+
 class FakeTransactionRequest(object):
     def __init__(self, client):
-        self.client = client
+        self._lock = client.handler.rlock_object()
+        self._client = client
+        self._partial_client = client._partial_client
+        self._storage = client.storage
         self.operations = []
         self.committed = False
 
     def delete(self, path, version=-1):
-        self.operations.append((self.client.delete, [path, version]))
+        delayed_op = functools.partial(self._partial_client.delete,
+                                       path, version)
+        self._add(('delete', delayed_op))
 
     def check(self, path, version):
-        if not isinstance(path, six.string_types):
-            raise TypeError("path must be a string")
-        if not isinstance(version, int):
-            raise TypeError("version must be an int")
 
-        def apply_check(path, version):
+        def delayed_check(path, version):
+            if not isinstance(path, six.string_types):
+                raise TypeError("path must be a string")
+            if not isinstance(version, int):
+                raise TypeError("version must be an int")
             try:
-                data = self.client.storage[path]
+                data = self._storage[path]
                 if data['version'] != version:
-                    raise StopTransaction()
+                    raise StopTransactionBadVersion()
+                else:
+                    return (True, [], [])
             except KeyError:
-                raise StopTransaction()
+                raise StopTransactionNoExists()
 
-        self.operations.append((apply_check, [path, version]))
+        delayed_op = functools.partial(delayed_check, path, version)
+        self._add(('check', delayed_op))
 
     def set_data(self, path, value, version=-1):
-        self.operations.append((self.client.set, [path, value, version]))
+        delayed_op = functools.partial(self._partial_client.set,
+                                       path, value, version)
+        self._add(('set_data', delayed_op))
 
     def create(self, path, value=b"", acl=None, ephemeral=False,
                sequence=False):
-        self.operations.append((self.client.create,
-                                [path, value, acl, ephemeral, sequence]))
+        delayed_op = functools.partial(self._partial_client.create,
+                                       path, value, acl, ephemeral, sequence)
+        self._add(('create', delayed_op))
 
     def commit(self):
-        if self.committed:
-            raise ValueError('Transaction already committed')
-        with self.client.storage.lock:
-            self.client.verify()
+        self._check_tx_state()
+        self._client.verify()
+        with try_txn_lock(self._lock):
+            self._check_tx_state()
+            # Delay all watch firing until we are sure that it succeeded.
             results = []
-            failed = False
-            # Currently we aren't undoing things, that's ok for now, but it
-            # can leave the storage in a bad state when things go wrong...
-            for (f, args) in self.operations:
-                try:
-                    results.append(f(*args))
-                except StopTransaction:
-                    failed = True
-                    break
-            if failed:
-                self.committed = False
-                return []
+            child_watches = []
+            data_watches = []
+            try:
+                with self._storage.transaction():
+                    for (name, func) in self.operations:
+                        result = func()
+                        results.append(result[0])
+                        data_watches.extend(result[1])
+                        child_watches.extend(result[2])
+            except StopTransaction as e:
+                for i in range(0, len(results)):
+                    results[i] = k_exceptions.RolledBackError()
+                if isinstance(e, StopTransactionBadVersion):
+                    results.append(k_exceptions.BadVersionError())
+                if isinstance(e, StopTransactionNoExists):
+                    results.append(k_exceptions.NoNodeError())
+                while len(results) != len(self.operations):
+                    results.append(k_exceptions.RuntimeInconsistency())
+            except (NotImplementedError, AttributeError,
+                    RuntimeError, ValueError, TypeError,
+                    k_exceptions.ConnectionClosedError,
+                    k_exceptions.SessionExpiredError):
+                # Allow all these errors to bubble up.
+                six.reraise(*sys.exc_info())
+            except Exception as e:
+                for i in range(0, len(results)):
+                    results[i] = k_exceptions.RolledBackError()
+                results.append(e)
+                while len(results) != len(self.operations):
+                    results.append(k_exceptions.RuntimeInconsistency())
             else:
+                self._client.fire_child_watches(child_watches)
+                self._client.fire_data_watches(data_watches)
                 self.committed = True
-                return results
+            return results
 
     def __enter__(self):
         return self
+
+    def _check_tx_state(self):
+        if self.committed:
+            raise ValueError('Transaction already committed')
+
+    def _add(self, request):
+        with try_txn_lock(self._lock):
+            self._check_tx_state()
+            self.operations.append(request)
 
     def __exit__(self, type, value, tb):
         if not any((type, value, tb)):

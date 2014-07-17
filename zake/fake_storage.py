@@ -16,7 +16,9 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
+import contextlib
 import os
+import sys
 import threading
 
 import six
@@ -153,6 +155,25 @@ class FakeStorage(object):
     def __contains__(self, path):
         with self.lock:
             return path in self._paths
+
+    @contextlib.contextmanager
+    def transaction(self):
+        with self.lock:
+            # Keep the before the transaction information and reset to that
+            # data if the context manager fails (this makes it appear that the
+            # operations done during the transaction either complete as a
+            # group or do not complete).
+            paths = self.paths
+            sequences = self.sequences
+            try:
+                yield
+            except Exception:
+                cause = sys.exc_info()
+                try:
+                    self._paths = paths
+                    self._sequences = sequences
+                finally:
+                    six.reraise(*cause)
 
     def get_children(self, path, only_direct=True):
         paths = {}

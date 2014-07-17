@@ -175,6 +175,42 @@ class TestClient(test.Test):
             self.assertTrue(txn.committed)
             self.assertTrue(c.exists("/c"))
 
+    def test_transaction_abort(self):
+        with start_close(self.client) as c:
+            c.create("/b")
+            data, stat = c.get("/b")
+            txn = c.transaction()
+            txn.create("/c")
+            txn.check("/b", stat.version + 1)
+            results = txn.commit()
+            self.assertFalse(c.exists("/c"))
+            self.assertEqual(2, len(results))
+            self.assertIsInstance(results[1], k_exceptions.BadVersionError)
+            self.assertFalse(txn.committed)
+
+    def test_data_watch_not_triggered(self):
+        ev = threading.Event()
+        updates = []
+
+        def notify_me(data, stat):
+            if stat:
+                updates.append((data, stat))
+                ev.set()
+
+        with start_close(self.client) as c:
+            k_watchers.DataWatch(c, "/b", func=notify_me)
+            with c.transaction() as txn:
+                txn.create("/b")
+                txn.check("/c", version=0)
+            self.assertEqual(0, len(updates))
+            self.assertFalse(txn.committed)
+            with c.transaction() as txn:
+                txn.create("/b")
+                txn.check("/b", version=0)
+            self.assertTrue(txn.committed)
+            ev.wait()
+            self.assertEqual(1, len(updates))
+
     def test_data_watch(self):
         updates = collections.deque()
         ev = threading.Event()
