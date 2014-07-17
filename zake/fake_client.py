@@ -145,7 +145,7 @@ class PartialClient(object):
             path = k_paths.normpath(path)
             if makepath:
                 for parent_path in utils.partition_path(path)[0:-1]:
-                    if not parent_path in self.storage:
+                    if parent_path not in self.storage:
                         result = self.create(parent_path)
                         data_watches.extend(result[1])
                         child_watches.extend(result[2])
@@ -508,7 +508,7 @@ def try_txn_lock(lock):
     if not locked:
         raise RuntimeError("Transaction can not be concurrently modified")
     try:
-         yield
+        yield
     finally:
         lock.release()
 
