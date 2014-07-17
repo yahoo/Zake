@@ -211,6 +211,63 @@ class TestClient(test.Test):
             ev.wait()
             self.assertEqual(1, len(updates))
 
+    def test_concurrent_transaction_aborts(self):
+
+        def thread_create(client, path):
+            with client.transaction() as txn:
+                txn.create(path)
+                txn.check(path, version=1)
+
+        with start_close(self.client) as c:
+            threads = []
+            paths = []
+            for i in range(0, 20):
+                paths.append("/tmp%010d" % (i))
+                t = threading.Thread(target=thread_create, args=(c, paths[-1]))
+                t.daemon = True
+                threads.append(t)
+                t.start()
+            while threads:
+                t = threads.pop()
+                t.join()
+            for p in paths:
+                self.assertFalse(c.exists(p))
+
+    def test_concurrent_transaction_half_work(self):
+        results = collections.deque()
+
+        def thread_create(client, path, ident):
+            txn = client.transaction()
+            txn.create(path)
+            txn.set_data(path, str(ident))
+            try:
+                txn.commit()
+            finally:
+                results.append(txn.committed)
+
+        with start_close(self.client) as c:
+            threads = []
+            paths = []
+            for i in range(0, 20):
+                paths.append("/tmp%010d" % (i % 10))
+                t = threading.Thread(target=thread_create,
+                                     args=(c, paths[-1], i))
+                t.daemon = True
+                threads.append(t)
+                t.start()
+            while threads:
+                t = threads.pop()
+                t.join()
+            names = set()
+            for p in paths:
+                self.assertTrue(c.exists(p))
+                names.add(c.get(p)[0])
+            passes = [r for r in results if r]
+            failures = [r for r in results if not r]
+            self.assertEqual(10, len(passes))
+            self.assertEqual(10, len(failures))
+            self.assertEqual(10, len(names))
+
     def test_data_watch(self):
         updates = collections.deque()
         ev = threading.Event()
