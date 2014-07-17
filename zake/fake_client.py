@@ -278,8 +278,8 @@ class FakeClient(object):
             raise TypeError("path must be a string")
         path = k_paths.normpath(path)
         try:
-            exists = bool(self.get(path)[1])
-        except k_exceptions.NoNodeError:
+            (data, exists) = self.storage.get(path)
+        except KeyError:
             exists = None
         if watch:
             with self._data_watches_lock:
