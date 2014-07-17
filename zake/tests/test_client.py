@@ -20,6 +20,8 @@ import collections
 import contextlib
 import threading
 
+import six
+
 from kazoo import exceptions as k_exceptions
 from kazoo.recipe import watchers as k_watchers
 
@@ -236,10 +238,10 @@ class TestClient(test.Test):
     def test_concurrent_transaction_half_work(self):
         results = collections.deque()
 
-        def thread_create(client, path, ident):
+        def thread_create(client, path, data):
             txn = client.transaction()
             txn.create(path)
-            txn.set_data(path, str(ident))
+            txn.set_data(path, six.text_type(data).encode("utf8"))
             try:
                 txn.commit()
             finally:
