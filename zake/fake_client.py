@@ -59,7 +59,7 @@ class SequentialThreadingHandler(k_threading.SequentialThreadingHandler):
         return self._spawner.submit(func, *args, **kwargs)
 
 
-class PartialClient(object):
+class _PartialClient(object):
     def __init__(self, storage):
         self.storage = storage
 
@@ -190,7 +190,7 @@ class FakeClient(object):
             self.storage = storage
         else:
             self.storage = fs.FakeStorage(lock=self.handler.rlock_object())
-        self._partial_client = PartialClient(self.storage)
+        self._partial_client = _PartialClient(self.storage)
         self._open_close_lock = self.handler.rlock_object()
         self._child_watches_lock = self.handler.rlock_object()
         self._data_watches_lock = self.handler.rlock_object()
