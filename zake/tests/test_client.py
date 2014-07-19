@@ -127,7 +127,6 @@ class TestClient(test.Test):
             self.assertEqual(1, znode.version)
 
     def test_ephemeral_raises(self):
-        storage = self.client.storage
         with start_close(self.client) as c:
             c.create("/b", ephemeral=True)
             data, znode = c.get("/b")
