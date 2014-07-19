@@ -209,6 +209,12 @@ class TestClient(test.Test):
             self.assertIsInstance(results[1], k_exceptions.BadVersionError)
             self.assertFalse(txn.committed)
 
+    def test_session_id(self):
+        self.assertIsNone(self.client.session_id)
+        with start_close(self.client) as c:
+            self.assertIsNotNone(c.session_id)
+        self.assertIsNone(self.client.session_id)
+
     def test_data_watch_not_triggered(self):
         ev = threading.Event()
         updates = []
