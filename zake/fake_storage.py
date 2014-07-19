@@ -41,7 +41,7 @@ def _split_path(path):
 class FakeStorage(object):
     """A place too place fake zookeeper paths + data."""
 
-    def __init__(self, lock=None, paths=None, sequences=None):
+    def __init__(self, lock, paths=None, sequences=None):
         if paths:
             self._paths = dict(paths)
         else:
@@ -50,8 +50,6 @@ class FakeStorage(object):
             self._sequences = sequences
         else:
             self._sequences = {}
-        if lock is None:
-            lock = threading.RLock()
         self.lock = lock
         # Ensure the root path *always* exists.
         if "/" not in self._paths:

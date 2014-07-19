@@ -189,7 +189,7 @@ class FakeClient(object):
         if storage is not None:
             self.storage = storage
         else:
-            self.storage = fs.FakeStorage(lock=self.handler.rlock_object())
+            self.storage = fs.FakeStorage(self.handler.rlock_object())
         self._partial_client = _PartialClient(self.storage)
         self._open_close_lock = self.handler.rlock_object()
         self._child_watches_lock = self.handler.rlock_object()
