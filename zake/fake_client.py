@@ -340,8 +340,9 @@ class FakeClient(object):
                 self._fire_state_change(k_states.KazooState.CONNECTED)
 
     def restart(self):
-        self.stop()
-        self.start()
+        with self._open_close_lock:
+            self.stop()
+            self.start()
 
     def _fire_state_change(self, state):
         with self._listeners_lock:
