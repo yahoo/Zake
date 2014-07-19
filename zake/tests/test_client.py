@@ -43,6 +43,10 @@ class TestClient(test.Test):
         super(TestClient, self).setUp()
         self.client = fake_client.FakeClient()
 
+    def tearDown(self):
+        super(TestClient, self).tearDown()
+        self.client.close()
+
     def test_connected(self):
         self.assertFalse(self.client.connected)
         with start_close(self.client) as c:
