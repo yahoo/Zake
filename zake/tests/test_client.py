@@ -99,6 +99,27 @@ class TestClient(test.Test):
             self.assertRaises(k_exceptions.KazooException,
                               c.create, "/a/b/c")
 
+    def test_concurrent_restart(self):
+        accumulator = collections.deque()
+
+        def do_restart():
+            accumulator.append(self.client.restart())
+
+        threads = []
+        for i in range(0, 20):
+            threads.append(threading.Thread(target=do_restart))
+            threads[-1].start()
+        while threads:
+            t = threads.pop()
+            t.join()
+
+        self.assertEqual(20, len(accumulator))
+        start_counts = collections.defaultdict(int)
+        for before in accumulator:
+            start_counts[before] += 1
+        for before, count in six.iteritems(start_counts):
+            self.assertEqual(1, count)
+
     def test_sequence(self):
         with start_close(self.client) as c:
             path = c.create("/", sequence=True)

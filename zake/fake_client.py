@@ -341,8 +341,10 @@ class FakeClient(object):
 
     def restart(self):
         with self._open_close_lock:
+            before = self.session_id
             self.stop()
             self.start()
+            return before
 
     def _fire_state_change(self, state):
         with self._listeners_lock:
