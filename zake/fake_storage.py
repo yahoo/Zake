@@ -130,15 +130,14 @@ class FakeStorage(object):
     def create(self, path, value=b"", sequence=False,
                ephemeral=False, session_id=None):
         parent_path, _node_name = _split_path(path)
-        if sequence:
-            with self.lock:
+        with self.lock:
+            if sequence:
                 sequence_id = self._sequences.get(parent_path, 0)
                 if sequence_id == SEQ_ROLLOVER:
                     self._sequences[parent_path] = SEQ_ROLLOVER_TO
                 else:
                     self._sequences[parent_path] = sequence_id + 1
                 path = path + '%010d' % (sequence_id)
-        with self.lock:
             parents = sorted(six.iterkeys(self.get_parents(path)))
             if ephemeral and not session_id:
                 raise k_exceptions.SystemZookeeperError("Ephemeral node %s can"
