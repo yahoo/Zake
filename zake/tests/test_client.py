@@ -126,6 +126,25 @@ class TestClient(test.Test):
             self.assertEqual(b"efg", data)
             self.assertEqual(1, znode.version)
 
+    def test_ephemeral_raises(self):
+        storage = self.client.storage
+        with start_close(self.client) as c:
+            c.create("/b", ephemeral=True)
+            data, znode = c.get("/b")
+            self.assertNotEqual(0, znode.ephemeralOwner)
+        with start_close(self.client) as c:
+            self.assertRaises(k_exceptions.NoNodeError,
+                              c.get, "/b")
+
+    def test_ephemeral_no_children(self):
+        with start_close(self.client) as c:
+            c.create("/b", ephemeral=True)
+            self.assertRaises(k_exceptions.NoChildrenForEphemeralsError,
+                              c.create, "/b/c")
+        with start_close(self.client) as c:
+            c.create("/b", ephemeral=False)
+            c.create("/b/c")
+
     def test_delete(self):
         with start_close(self.client) as c:
             self.assertRaises(k_exceptions.NoNodeError, c.delete, "/b")

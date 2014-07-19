@@ -22,6 +22,7 @@ import functools
 import logging
 import sys
 import time
+import uuid
 
 from concurrent import futures
 import six
@@ -62,6 +63,7 @@ class SequentialThreadingHandler(k_threading.SequentialThreadingHandler):
 class _PartialClient(object):
     def __init__(self, storage):
         self.storage = storage
+        self.session_id = None
 
     def delete(self, path, version=-1, recursive=False):
         if not isinstance(path, six.string_types):
@@ -149,9 +151,9 @@ class _PartialClient(object):
                         result = self.create(parent_path)
                         data_watches.extend(result[1])
                         child_watches.extend(result[2])
-            created, parents, path = self.storage.create(path,
-                                                         value=value,
-                                                         sequence=sequence)
+            created, parents, path = self.storage.create(
+                path, value=value, sequence=sequence,
+                ephemeral=ephemeral, session_id=self.session_id)
         if parents:
             event = k_states.WatchedEvent(type=k_states.EventType.CHILD,
                                           state=k_states.KeeperState.CONNECTED,
@@ -227,6 +229,10 @@ class FakeClient(object):
                                                      " closed")
         if self.expired:
             raise k_exceptions.SessionExpiredError("Expired")
+
+    @property
+    def session_id(self):
+        return self._partial_client.session_id
 
     @property
     def timeout_exception(self):
@@ -324,8 +330,13 @@ class FakeClient(object):
     def start(self, timeout=None):
         with self._open_close_lock:
             if not self._connected:
-                self.handler.start()
+                with self._child_watches_lock:
+                    self._child_watches.clear()
+                with self._data_watches_lock:
+                    self._data_watches.clear()
                 self._connected = True
+                self.handler.start()
+                self._partial_client.session_id = uuid.uuid4().int
                 self._fire_state_change(k_states.KazooState.CONNECTED)
 
     def restart(self):
@@ -410,16 +421,7 @@ class FakeClient(object):
                                     watch=watch, include_data=include_data)
 
     def stop(self):
-        with self._open_close_lock:
-            if not self._connected:
-                return
-            self._fire_state_change(k_states.KazooState.LOST)
-            if self._stop_handler:
-                self.handler.stop()
-            self._listeners.clear()
-            self._child_watches.clear()
-            self._data_watches.clear()
-            self._connected = False
+        self.close()
 
     def delete(self, path, version=-1, recursive=False):
         self.verify()
@@ -487,7 +489,14 @@ class FakeClient(object):
         return self._generate_async(self.ensure_path, path)
 
     def close(self):
-        self._connected = False
+        with self._open_close_lock:
+            if self._connected:
+                self.storage.purge(self._partial_client.session_id)
+                self._fire_state_change(k_states.KazooState.LOST)
+                if self._stop_handler:
+                    self.handler.stop()
+                self._connected = False
+                self._partial_client.session_id = None
 
 
 class StopTransaction(Exception):

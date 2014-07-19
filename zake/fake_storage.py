@@ -19,7 +19,6 @@
 import contextlib
 import os
 import sys
-import threading
 
 import six
 
@@ -61,20 +60,28 @@ class FakeStorage(object):
                 'aversion': -1,
                 'cversion': -1,
                 'data': b"",
+                'ephemeral': False,
             }
 
     def _make_znode(self, node, child_count):
-        return k_states.ZnodeStat(czxid=node['version'],
-                                  mzxid=node['version'],
-                                  pzxid=node['version'],
-                                  ctime=node['created_on'],
-                                  mtime=node['updated_on'],
-                                  version=node['version'],
-                                  aversion=node['cversion'],
-                                  cversion=node['aversion'],
-                                  ephemeralOwner=-1,
-                                  dataLength=len(node['data']),
-                                  numChildren=child_count)
+        # Not exactly right, but good enough...
+        translated = {
+            'czxid': node['version'],
+            'mzxid': node['version'],
+            'pzxid': node['version'],
+            'ctime': node['created_on'],
+            'mtime': node['updated_on'],
+            'version': node['version'],
+            'aversion': node['aversion'],
+            'cversion': node['cversion'],
+            'dataLength': len(node['data']),
+            'numChildren': int(child_count),
+        }
+        if node['ephemeral']:
+            translated['ephemeralOwner'] = node['ephemeral_owner']
+        else:
+            translated['ephemeralOwner'] = 0
+        return k_states.ZnodeStat(**translated)
 
     @property
     def paths(self):
@@ -108,7 +115,17 @@ class FakeStorage(object):
                 self._paths[path]['version'] += 1
             return self.get(path)[1]
 
-    def create(self, path, value=b"", sequence=False):
+    def purge(self, session_id):
+        with self.lock:
+            removals = []
+            for path, data in six.iteritems(self._paths):
+                if data['ephemeral'] and data['ephemeral_owner'] == session_id:
+                    removals.append(path)
+            for path in removals:
+                del self._paths[path]
+
+    def create(self, path, value=b"", sequence=False,
+               ephemeral=False, session_id=None):
         parent_path, _node_name = _split_path(path)
         if sequence:
             with self.lock:
@@ -119,13 +136,23 @@ class FakeStorage(object):
                     self._sequences[parent_path] = sequence_id + 1
                 path = path + '%010d' % (sequence_id)
         with self.lock:
+            parents = sorted(six.iterkeys(self.get_parents(path)))
+            if ephemeral and not session_id:
+                raise k_exceptions.SystemZookeeperError("Ephemeral node %s can"
+                                                        " not be created"
+                                                        " without a session"
+                                                        " id" % path)
             if parent_path not in self:
                 raise k_exceptions.NoNodeError("Parent node %s does not exist"
                                                % (parent_path))
             if path in self:
                 raise k_exceptions.NodeExistsError("Node %s already"
                                                    " exists" % (path))
-            self._paths[path] = {
+            for parent_path in reversed(parents):
+                if self._paths[parent_path]['ephemeral']:
+                    raise k_exceptions.NoChildrenForEphemeralsError(
+                        "Parent %s is ephemeral" % parent_path)
+            path_data = {
                 # Kazoo clients expect in milliseconds
                 'created_on': utils.millitime(),
                 'updated_on': utils.millitime(),
@@ -135,7 +162,12 @@ class FakeStorage(object):
                 'cversion': -1,
                 'data': value,
             }
-            parents = sorted(six.iterkeys(self.get_parents(path)))
+            if ephemeral:
+                path_data['ephemeral_owner'] = session_id
+                path_data['ephemeral'] = True
+            else:
+                path_data['ephemeral'] = False
+            self._paths[path] = path_data
             return (True, parents, path)
 
     def pop(self, path):
