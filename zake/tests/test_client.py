@@ -218,8 +218,8 @@ class TestClient(test.Test):
                 updates.append((data, stat))
                 ev.set()
 
+        k_watchers.DataWatch(self.client, "/b", func=notify_me)
         with start_close(self.client) as c:
-            k_watchers.DataWatch(c, "/b", func=notify_me)
             with c.transaction() as txn:
                 txn.create("/b")
                 txn.check("/c", version=0)
@@ -297,8 +297,8 @@ class TestClient(test.Test):
             updates.append((data, stat))
             ev.set()
 
+        k_watchers.DataWatch(self.client, "/b", func=notify_me)
         with start_close(self.client) as c:
-            k_watchers.DataWatch(self.client, "/b", func=notify_me)
             ev.wait()
             ev.clear()
             c.ensure_path("/b")
