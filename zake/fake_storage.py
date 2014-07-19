@@ -117,7 +117,7 @@ class FakeStorage(object):
 
     def purge(self, session_id):
         if not session_id:
-            return
+            return 0
         with self.lock:
             removals = []
             for path, data in six.iteritems(self._paths):
@@ -125,6 +125,7 @@ class FakeStorage(object):
                     removals.append(path)
             for path in removals:
                 del self._paths[path]
+            return len(removals)
 
     def create(self, path, value=b"", sequence=False,
                ephemeral=False, session_id=None):
