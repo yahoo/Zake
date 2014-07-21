@@ -529,8 +529,11 @@ class DelayedOperation(object):
     def __init__(self, name, operation, path=None, version=-1):
         self.path = path
         self.name = name
-        self.operation = operation
         self.version = version
+        self._operation = operation
+
+    def __call__(self):
+        return self._operation()
 
 
 class FakeTransactionRequest(object):
@@ -592,7 +595,7 @@ class FakeTransactionRequest(object):
             try:
                 with self._storage.transaction():
                     for op in self.operations:
-                        result = op.operation()
+                        result = op()
                         results.append(result[0])
                         data_watches.extend(result[1])
                         child_watches.extend(result[2])
