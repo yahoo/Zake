@@ -525,6 +525,14 @@ def try_txn_lock(lock):
         lock.release()
 
 
+class DelayedOperation(object):
+    def __init__(self, name, operation, path=None, version=-1):
+        self.path = path
+        self.name = name
+        self.operation = operation
+        self.version = version
+
+
 class FakeTransactionRequest(object):
     def __init__(self, client):
         self._lock = client.handler.rlock_object()
@@ -537,7 +545,8 @@ class FakeTransactionRequest(object):
     def delete(self, path, version=-1):
         delayed_op = functools.partial(self._partial_client.delete,
                                        path, version)
-        self._add(('delete', delayed_op))
+        self._add(DelayedOperation('delete', delayed_op,
+                                   path=path, version=version))
 
     def check(self, path, version):
 
@@ -556,18 +565,20 @@ class FakeTransactionRequest(object):
                 raise StopTransactionNoExists()
 
         delayed_op = functools.partial(delayed_check, path, version)
-        self._add(('check', delayed_op))
+        self._add(DelayedOperation('check', delayed_op,
+                                   path=path, version=version))
 
     def set_data(self, path, value, version=-1):
         delayed_op = functools.partial(self._partial_client.set,
                                        path, value, version)
-        self._add(('set_data', delayed_op))
+        self._add(DelayedOperation('set_data', delayed_op,
+                                   path=path, version=version))
 
     def create(self, path, value=b"", acl=None, ephemeral=False,
                sequence=False):
         delayed_op = functools.partial(self._partial_client.create,
                                        path, value, acl, ephemeral, sequence)
-        self._add(('create', delayed_op))
+        self._add(DelayedOperation('create', delayed_op, path=path))
 
     def commit(self):
         self._check_tx_state()
@@ -580,8 +591,8 @@ class FakeTransactionRequest(object):
             data_watches = []
             try:
                 with self._storage.transaction():
-                    for (name, func) in self.operations:
-                        result = func()
+                    for op in self.operations:
+                        result = op.operation()
                         results.append(result[0])
                         data_watches.extend(result[1])
                         child_watches.extend(result[2])
