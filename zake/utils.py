@@ -19,10 +19,20 @@
 import os
 import time
 
+from kazoo.protocol import paths as k_paths
+
 
 def millitime():
     """Converts the current time to milliseconds."""
     return int(round(time.time() * 1000.0))
+
+
+def normpath(path):
+    """Really normalize the path by adding a missing leading slash"""
+    path = k_paths.normpath(path)
+    if not path.startswith('/'):
+        return '/' + path
+    return path
 
 
 def partition_path(path):
