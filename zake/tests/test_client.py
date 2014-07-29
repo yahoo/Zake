@@ -97,13 +97,13 @@ class TestClient(test.Test):
     def test_path_normalization(self):
         with start_close(self.client) as c:
             c.create("/a", b"blah", makepath=True)
-            self.assertEqual(c.get("/a")[0], "blah")
-            self.assertEqual(c.get("a")[0], "blah")
+            self.assertEqual(c.get("/a")[0], b"blah")
+            self.assertEqual(c.get("a")[0], b"blah")
 
     def test_missing_leading_slash(self):
         with start_close(self.client) as c:
             c.create("a/b/c", b"blah", makepath=True)
-            self.assertEqual(c.get("a/b/c")[0], "blah")
+            self.assertEqual(c.get("a/b/c")[0], b"blah")
             self.assertTrue(c.exists("a/b/c"))
             self.assertTrue(c.exists("a/b"))
             self.assertTrue(c.exists("a"))
