@@ -29,7 +29,6 @@ import six
 
 from kazoo import exceptions as k_exceptions
 from kazoo.handlers import threading as k_threading
-from kazoo.protocol import paths as k_paths
 from kazoo.protocol import states as k_states
 from kazoo.recipe import watchers as k_watchers
 
@@ -70,7 +69,7 @@ class _PartialClient(object):
             raise TypeError("path must be a string")
         data_watches = []
         child_watches = []
-        path = k_paths.normpath(path)
+        path = utils.normpath(path)
         with self.storage.lock:
             if path not in self.storage:
                 raise k_exceptions.NoNodeError("No path %s" % (path))
@@ -120,7 +119,7 @@ class _PartialClient(object):
             raise TypeError("value must be a byte string")
         if not isinstance(version, int):
             raise TypeError("version must be an int")
-        path = k_paths.normpath(path)
+        path = utils.normpath(path)
         try:
             stat = self.storage.set(path, value, version=version)
         except KeyError:
@@ -144,7 +143,7 @@ class _PartialClient(object):
         data_watches = []
         child_watches = []
         with self.storage.lock:
-            path = k_paths.normpath(path)
+            path = utils.normpath(path)
             if makepath:
                 for parent_path in utils.partition_path(path)[0:-1]:
                     if parent_path not in self.storage:
@@ -302,7 +301,7 @@ class FakeClient(object):
         self.verify()
         if not isinstance(path, six.string_types):
             raise TypeError("path must be a string")
-        path = k_paths.normpath(path)
+        path = utils.normpath(path)
         try:
             (data, znode) = self.storage.get(path)
         except KeyError:
@@ -371,7 +370,7 @@ class FakeClient(object):
         self.verify()
         if not isinstance(path, six.string_types):
             raise TypeError("path must be a string")
-        path = k_paths.normpath(path)
+        path = utils.normpath(path)
         try:
             (data, exists) = self.storage.get(path)
         except KeyError:
@@ -403,7 +402,7 @@ class FakeClient(object):
         def clean_path(p):
             return p.strip("/")
 
-        path = k_paths.normpath(path)
+        path = utils.normpath(path)
         paths = self.storage.get_children(path)
         if watch:
             with self._child_watches_lock:
@@ -481,7 +480,7 @@ class FakeClient(object):
         self.verify()
         if not isinstance(path, six.string_types):
             raise TypeError("path must be a string")
-        path = k_paths.normpath(path)
+        path = utils.normpath(path)
         for piece in utils.partition_path(path):
             try:
                 self.create(piece)

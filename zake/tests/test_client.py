@@ -94,6 +94,20 @@ class TestClient(test.Test):
             self.assertTrue(c.exists("/a/b"))
             self.assertTrue(c.exists("/a"))
 
+    def test_path_normalization(self):
+        with start_close(self.client) as c:
+            c.create("/a", "blah", makepath=True)
+            self.assertEqual(c.get("/a")[0], "blah")
+            self.assertEqual(c.get("a")[0], "blah")
+
+    def test_missing_leading_slash(self):
+        with start_close(self.client) as c:
+            c.create("a/b/c", "blah", makepath=True)
+            self.assertEqual(c.get("a/b/c")[0], "blah")
+            self.assertTrue(c.exists("a/b/c"))
+            self.assertTrue(c.exists("a/b"))
+            self.assertTrue(c.exists("a"))
+
     def test_no_make_path(self):
         with start_close(self.client) as c:
             self.assertRaises(k_exceptions.KazooException,
