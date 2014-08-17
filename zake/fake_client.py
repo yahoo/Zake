@@ -334,6 +334,7 @@ class FakeClient(object):
                 with self._data_watches_lock:
                     self._data_watches.clear()
                 self._connected = True
+                self.storage.attach(self)
                 self.handler.start()
                 self._partial_client.session_id = uuid.uuid4().int
                 self._fire_state_change(k_states.KazooState.CONNECTED)
@@ -493,7 +494,7 @@ class FakeClient(object):
     def close(self):
         with self._open_close_lock:
             if self._connected:
-                self.storage.purge(self._partial_client.session_id)
+                self.storage.purge(self)
                 self._fire_state_change(k_states.KazooState.LOST)
                 if self._stop_handler:
                     self.handler.stop()

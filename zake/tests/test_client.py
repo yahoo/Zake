@@ -26,6 +26,7 @@ from kazoo import exceptions as k_exceptions
 from kazoo.recipe import watchers as k_watchers
 
 from zake import fake_client
+from zake import fake_storage
 from zake import test
 
 
@@ -452,3 +453,26 @@ class TestClient(test.Test):
             ev.wait()
             self.assertFalse(r.successful())
             self.assertIsNotNone(r.exception)
+
+
+class TestMultiClient(test.Test):
+    def test_purge_clients_triggered(self):
+        shared_storage = fake_storage.FakeStorage(threading.RLock())
+        client1 = fake_client.FakeClient(storage=shared_storage)
+        client2 = fake_client.FakeClient(storage=shared_storage)
+        events = collections.deque()
+
+        def cb(data, stat):
+            events.append((data, stat))
+
+        with start_close(client1):
+            client1.create('/a')
+            client1.set('/a', b'b')
+            with start_close(client2):
+                value, znode = client2.get('/a')
+                self.assertEqual(b'b', value)
+                client1.DataWatch('/b', func=cb)
+                client2.create("/b", b'eee', ephemeral=True)
+                client2.set("/b", b'fff')
+
+        self.assertEqual((None, None), events[0])

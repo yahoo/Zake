@@ -62,6 +62,12 @@ class FakeStorage(object):
                 'data': b"",
                 'ephemeral': False,
             }
+        self._clients = []
+
+    def attach(self, client):
+        with self.lock:
+            if client not in self._clients:
+                self._clients.append(client)
 
     def _make_znode(self, node, child_count):
         # Not exactly right, but good enough...
@@ -115,17 +121,42 @@ class FakeStorage(object):
                 self._paths[path]['version'] += 1
             return self.get(path)[1]
 
-    def purge(self, session_id):
-        if not session_id:
+    def purge(self, client):
+        if not client.session_id:
             return 0
         with self.lock:
+            if client in self._clients:
+                self._clients.remove(client)
             removals = []
             for path, data in six.iteritems(self._paths):
-                if data['ephemeral'] and data['ephemeral_owner'] == session_id:
+                if data['ephemeral'] \
+                   and data['ephemeral_owner'] == client.session_id:
                     removals.append(path)
+            data_watches = []
+            for path in removals:
+                event = k_states.WatchedEvent(
+                    type=k_states.EventType.DELETED,
+                    state=k_states.KeeperState.CONNECTED,
+                    path=path)
+                data_watches.append(([path], event))
+            child_watches = []
+            seen = set()
+            for path in removals:
+                for parent_path in self.get_parents(path):
+                    if parent_path in seen:
+                        continue
+                    event = k_states.WatchedEvent(
+                        type=k_states.EventType.DELETED,
+                        state=k_states.KeeperState.CONNECTED,
+                        path=parent_path)
+                    child_watches.append(([parent_path], event))
+                    seen.add(parent_path)
             for path in removals:
                 del self._paths[path]
-            return len(removals)
+        for c in self._clients:
+            c.fire_child_watches(child_watches)
+            c.fire_data_watches(data_watches)
+        return len(removals)
 
     def create(self, path, value=b"", sequence=False,
                ephemeral=False, session_id=None):
