@@ -26,7 +26,6 @@ from kazoo import exceptions as k_exceptions
 from kazoo.recipe import watchers as k_watchers
 
 from zake import fake_client
-from zake import fake_storage
 from zake import test
 
 
@@ -43,10 +42,7 @@ class TestClient(test.Test):
     def setUp(self):
         super(TestClient, self).setUp()
         self.client = fake_client.FakeClient()
-
-    def tearDown(self):
-        super(TestClient, self).tearDown()
-        self.client.close()
+        self.addCleanup(self.client.close)
 
     def test_connected(self):
         self.assertFalse(self.client.connected)
@@ -456,14 +452,28 @@ class TestClient(test.Test):
 
 
 class TestMultiClient(test.Test):
-    def test_purge_clients_triggered(self):
-        shared_storage = fake_storage.FakeStorage(threading.RLock())
-        client1 = fake_client.FakeClient(storage=shared_storage)
-        client2 = fake_client.FakeClient(storage=shared_storage)
-        events = collections.deque()
+    def make_clients(self, count, shared_storage=True):
+        clients = []
+        storage = None
+        for _i in range(0, count):
+            if storage is None:
+                client = fake_client.FakeClient()
+                self.addCleanup(client.close)
+                storage = client.storage
+            else:
+                client = fake_client.FakeClient(storage=storage)
+                self.addCleanup(client.close)
+            clients.append(client)
+        return clients
 
+    def test_clients_triggered(self):
+        client1, client2 = self.make_clients(2)
+        ev = threading.Event()
+
+        @client1.DataWatch("/b")
         def cb(data, stat):
-            events.append((data, stat))
+            if data == b'fff':
+                ev.set()
 
         with start_close(client1):
             client1.create('/a')
@@ -471,8 +481,33 @@ class TestMultiClient(test.Test):
             with start_close(client2):
                 value, znode = client2.get('/a')
                 self.assertEqual(b'b', value)
-                client1.DataWatch('/b', func=cb)
+                client2.create("/b", b'eee')
+                client2.set("/b", b'fff')
+            ev.wait()
+
+    def test_purge_clients_triggered(self):
+        client1, client2 = self.make_clients(2)
+        events = collections.deque()
+        fff_rcv = threading.Event()
+        end_rcv = threading.Event()
+
+        @client1.DataWatch("/b")
+        def cb(data, stat):
+            events.append((data, stat))
+            if data == b'fff':
+                fff_rcv.set()
+            if data is None and fff_rcv.is_set():
+                end_rcv.set()
+
+        with start_close(client1):
+            client1.create('/a')
+            client1.set('/a', b'b')
+            with start_close(client2):
+                value, znode = client2.get('/a')
+                self.assertEqual(b'b', value)
                 client2.create("/b", b'eee', ephemeral=True)
                 client2.set("/b", b'fff')
+                fff_rcv.wait()
+            end_rcv.wait()
 
-        self.assertEqual((None, None), events[0])
+        self.assertEqual((None, None), events[-1])

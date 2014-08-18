@@ -24,7 +24,6 @@ import sys
 import time
 import uuid
 
-from concurrent import futures
 import six
 
 from kazoo import exceptions as k_exceptions
@@ -42,21 +41,7 @@ LOG = logging.getLogger(__name__)
 # was added in 3.4.0 so we will say we are 3.4.0 compat (until proven
 # differently).
 SERVER_VERSION = (3, 4, 0)
-
 _NO_ACL_MSG = "ACLs not currently supported"
-
-
-def _make_cb(func, args, type=''):
-    return k_states.Callback(type=type, func=func, args=args)
-
-
-class SequentialThreadingHandler(k_threading.SequentialThreadingHandler):
-    def __init__(self, spawn_workers):
-        super(SequentialThreadingHandler, self).__init__()
-        self._spawner = futures.ThreadPoolExecutor(max_workers=spawn_workers)
-
-    def spawn(self, func, *args, **kwargs):
-        return self._spawner.submit(func, *args, **kwargs)
 
 
 class _PartialClient(object):
@@ -175,27 +160,27 @@ class FakeClient(object):
     testing frameworks (while in use and after the fact).
     """
 
-    def __init__(self, handler=None,
-                 storage=None, server_version=None,
-                 handler_spawn_workers=1):
+    def __init__(self, handler=None, storage=None, server_version=None):
         self._listeners = set()
         self._child_watches = collections.defaultdict(list)
         self._data_watches = collections.defaultdict(list)
-        if handler:
-            self.handler = handler
-            self._stop_handler = False
+        if handler is None:
+            self._handler = k_threading.SequentialThreadingHandler()
+            self._own_handler = True
         else:
-            self.handler = SequentialThreadingHandler(handler_spawn_workers)
-            self._stop_handler = True
+            self._handler = handler
+            self._own_handler = False
         if storage is not None:
-            self.storage = storage
+            self._storage = storage
+            self._own_storage = False
         else:
-            self.storage = fs.FakeStorage(self.handler.rlock_object())
-        self._partial_client = _PartialClient(self.storage)
-        self._open_close_lock = self.handler.rlock_object()
-        self._child_watches_lock = self.handler.rlock_object()
-        self._data_watches_lock = self.handler.rlock_object()
-        self._listeners_lock = self.handler.rlock_object()
+            self._storage = fs.FakeStorage(self._handler)
+            self._own_storage = True
+        self._partial_client = _PartialClient(self._storage)
+        self._open_close_lock = self._handler.rlock_object()
+        self._child_watches_lock = self._handler.rlock_object()
+        self._data_watches_lock = self._handler.rlock_object()
+        self._listeners_lock = self._handler.rlock_object()
         self._connected = False
         if server_version is None:
             self._server_version = SERVER_VERSION
@@ -208,6 +193,14 @@ class FakeClient(object):
         # Helper objects that makes these easier to create.
         self.ChildrenWatch = functools.partial(k_watchers.ChildrenWatch, self)
         self.DataWatch = functools.partial(k_watchers.DataWatch, self)
+
+    @property
+    def handler(self):
+        return self._handler
+
+    @property
+    def storage(self):
+        return self._storage
 
     def command(self, cmd=b'ruok'):
         self.verify()
@@ -223,7 +216,7 @@ class FakeClient(object):
         return ''
 
     def verify(self):
-        if not self.connected:
+        if not self._connected:
             raise k_exceptions.ConnectionClosedError("Connection has been"
                                                      " closed")
         if self.expired:
@@ -277,7 +270,7 @@ class FakeClient(object):
 
         while not wait_for.is_set():
             if not fired:
-                self.handler.dispatch_callback(_make_cb(flip, []))
+                self.handler.dispatch_callback(utils.make_cb(flip))
                 fired = True
             time.sleep(0.001)
 
@@ -287,8 +280,7 @@ class FakeClient(object):
         result, data_watches, child_watches = self._partial_client.create(
             path, value=value, acl=acl, ephemeral=ephemeral, sequence=sequence,
             makepath=makepath)
-        self.fire_child_watches(child_watches)
-        self.fire_data_watches(data_watches)
+        self.storage.inform(self, child_watches, data_watches)
         return result
 
     def create_async(self, path, value=b"", acl=None,
@@ -350,7 +342,7 @@ class FakeClient(object):
         with self._listeners_lock:
             listeners = list(self._listeners)
         for func in listeners:
-            self.handler.dispatch_callback(_make_cb(func, [state]))
+            self.handler.dispatch_callback(utils.make_cb(func, [state]))
 
     def _generate_async(self, func, *args, **kwargs):
         async_result = self.handler.async_result()
@@ -363,7 +355,7 @@ class FakeClient(object):
             except Exception as exc:
                 async_result.set_exception(exc)
 
-        cb = _make_cb(call, [func, args, kwargs], type='async')
+        cb = utils.make_cb(call, [func, args, kwargs], type='async')
         self.handler.dispatch_callback(cb)
         return async_result
 
@@ -388,8 +380,7 @@ class FakeClient(object):
         self.verify()
         result, data_watches, child_watches = self._partial_client.set(
             path, value, version=version)
-        self.fire_child_watches(child_watches)
-        self.fire_data_watches(data_watches)
+        self.storage.inform(self, child_watches, data_watches)
         return result
 
     def set_async(self, path, value, version=-1):
@@ -430,8 +421,7 @@ class FakeClient(object):
         self.verify()
         result, data_watches, child_watches = self._partial_client.delete(
             path, version=version, recursive=recursive)
-        self.fire_child_watches(child_watches)
-        self.fire_data_watches(data_watches)
+        self.storage.inform(self, child_watches, data_watches)
         return result
 
     def delete_async(self, path, recursive=False):
@@ -450,14 +440,14 @@ class FakeClient(object):
             self._listeners.discard(listener)
 
     def fire_child_watches(self, child_watches):
-        if not self.connected:
+        if not self._connected:
             return
         for (paths, event) in child_watches:
             self._fire_watches(paths, event, self._child_watches,
                                self._child_watches_lock)
 
     def fire_data_watches(self, data_watches):
-        if not self.connected:
+        if not self._connected:
             return
         for (paths, event) in data_watches:
             self._fire_watches(paths, event, self._data_watches,
@@ -471,7 +461,7 @@ class FakeClient(object):
             with watch_mutate_lock:
                 watches = list(watch_source.pop(path, []))
             for w in watches:
-                self.handler.dispatch_callback(_make_cb(w, [event]))
+                self.handler.dispatch_callback(utils.make_cb(w, [event]))
             dispatched.add(path)
 
     def transaction(self):
@@ -491,12 +481,12 @@ class FakeClient(object):
     def ensure_path_async(self, path):
         return self._generate_async(self.ensure_path, path)
 
-    def close(self):
+    def close(self, close_handler=True):
         with self._open_close_lock:
             if self._connected:
                 self.storage.purge(self)
                 self._fire_state_change(k_states.KazooState.LOST)
-                if self._stop_handler:
+                if self._own_handler and close_handler:
                     self.handler.stop()
                 self._connected = False
                 self._partial_client.session_id = None
@@ -544,6 +534,10 @@ class FakeTransactionRequest(object):
         self._storage = client.storage
         self.operations = []
         self.committed = False
+
+    @property
+    def storage(self):
+        return self._storage
 
     def delete(self, path, version=-1):
         delayed_op = functools.partial(self._partial_client.delete,
@@ -621,8 +615,7 @@ class FakeTransactionRequest(object):
                 while len(results) != len(self.operations):
                     results.append(k_exceptions.RuntimeInconsistency())
             else:
-                self._client.fire_child_watches(child_watches)
-                self._client.fire_data_watches(data_watches)
+                self._storage.inform(self._client, child_watches, data_watches)
                 self.committed = True
             return results
 

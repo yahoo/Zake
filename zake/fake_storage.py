@@ -38,9 +38,9 @@ def _split_path(path):
 
 
 class FakeStorage(object):
-    """A place too place fake zookeeper paths + data."""
+    """A place too place fake zookeeper paths + data + connected clients."""
 
-    def __init__(self, lock, paths=None, sequences=None):
+    def __init__(self, handler, paths=None, sequences=None):
         if paths:
             self._paths = dict(paths)
         else:
@@ -49,7 +49,7 @@ class FakeStorage(object):
             self._sequences = sequences
         else:
             self._sequences = {}
-        self.lock = lock
+        self._lock = handler.rlock_object()
         # Ensure the root path *always* exists.
         if "/" not in self._paths:
             self._paths["/"] = {
@@ -62,12 +62,17 @@ class FakeStorage(object):
                 'data': b"",
                 'ephemeral': False,
             }
-        self._clients = []
+        self._clients = set()
+        self._client_lock = handler.rlock_object()
+
+    @property
+    def lock(self):
+        return self._lock
 
     def attach(self, client):
-        with self.lock:
+        with self._client_lock:
             if client not in self._clients:
-                self._clients.append(client)
+                self._clients.add(client)
 
     def _make_znode(self, node, child_count):
         # Not exactly right, but good enough...
@@ -124,10 +129,13 @@ class FakeStorage(object):
     def purge(self, client):
         if not client.session_id:
             return 0
-        with self.lock:
+        with self._client_lock:
             if client in self._clients:
-                self._clients.remove(client)
-            removals = []
+                self._clients.discard(client)
+            else:
+                return 0
+        removals = []
+        with self.lock:
             for path, data in six.iteritems(self._paths):
                 if data['ephemeral'] \
                    and data['ephemeral_owner'] == client.session_id:
@@ -140,23 +148,30 @@ class FakeStorage(object):
                     path=path)
                 data_watches.append(([path], event))
             child_watches = []
-            seen = set()
+            seen_paths = set()
             for path in removals:
                 for parent_path in self.get_parents(path):
-                    if parent_path in seen:
+                    if parent_path in seen_paths:
                         continue
                     event = k_states.WatchedEvent(
                         type=k_states.EventType.DELETED,
                         state=k_states.KeeperState.CONNECTED,
                         path=parent_path)
                     child_watches.append(([parent_path], event))
-                    seen.add(parent_path)
+                    seen_paths.add(parent_path)
             for path in removals:
                 del self._paths[path]
-        for c in self._clients:
-            c.fire_child_watches(child_watches)
-            c.fire_data_watches(data_watches)
+        self.inform(client, child_watches, data_watches, inform_self=False)
         return len(removals)
+
+    def inform(self, client, child_watches, data_watches, inform_self=True):
+        with self._client_lock:
+            clients = set(self._clients)
+        for other_client in clients:
+            if not inform_self and other_client is client:
+                continue
+            other_client.fire_child_watches(child_watches)
+            other_client.fire_data_watches(data_watches)
 
     def create(self, path, value=b"", sequence=False,
                ephemeral=False, session_id=None):

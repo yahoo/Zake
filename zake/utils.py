@@ -20,6 +20,7 @@ import os
 import time
 
 from kazoo.protocol import paths as k_paths
+from kazoo.protocol import states as k_states
 
 
 def millitime():
@@ -28,11 +29,17 @@ def millitime():
 
 
 def normpath(path):
-    """Really normalize the path by adding a missing leading slash"""
+    """Really normalize the path by adding a missing leading slash."""
     path = k_paths.normpath(path)
     if not path.startswith('/'):
         return '/' + path
     return path
+
+
+def make_cb(func, args=None, type=''):
+    if not args:
+        args = []
+    return k_states.Callback(type=type, func=func, args=args)
 
 
 def partition_path(path):
