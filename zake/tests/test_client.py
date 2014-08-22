@@ -466,6 +466,19 @@ class TestMultiClient(test.Test):
             clients.append(client)
         return clients
 
+    def test_clients_attached(self):
+        clients = self.make_clients(50)
+        for i, c in enumerate(clients):
+            c.start()
+            self.assertEqual(i + 1, len(c.storage.clients))
+        total = len(c.storage.clients)
+        self.assertEqual(50, total)
+        for i, c in enumerate(clients):
+            c.close()
+            total -= 1
+            self.assertEqual(total, len(c.storage.clients))
+        self.assertEqual(0, total)
+
     def test_clients_triggered(self):
         client1, client2 = self.make_clients(2)
         ev = threading.Event()

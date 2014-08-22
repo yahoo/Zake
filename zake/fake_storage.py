@@ -104,6 +104,11 @@ class FakeStorage(object):
         with self.lock:
             return dict(self._sequences)
 
+    @property
+    def clients(self):
+        with self._client_lock:
+            return self._clients.copy()
+
     def __getitem__(self, path):
         with self.lock:
             return self._paths[path]
