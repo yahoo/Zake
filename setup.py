@@ -21,6 +21,9 @@
 from setuptools import find_packages
 from setuptools import setup
 
+with open("README.rst", "r") as readme:
+    long_description = readme.read()
+
 setup(
     name='zake',
     version='0.1',
@@ -49,5 +52,5 @@ setup(
     ],
     keywords="kazoo testing zookeeper",
     packages=find_packages(),
-    long_description=open("README.rst", "r").read(),
+    long_description=long_description,
 )
