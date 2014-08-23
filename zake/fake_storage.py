@@ -125,6 +125,9 @@ class FakeStorage(object):
                     raise k_exceptions.BadVersionError("Version mismatch %s "
                                                        "!= %s" % (stat.version,
                                                                   version))
+                self._paths[path]['data'] = value
+                self._paths[path]['updated_on'] = utils.millitime()
+                self._paths[path]['version'] += 1
             else:
                 self._paths[path]['data'] = value
                 self._paths[path]['updated_on'] = utils.millitime()
