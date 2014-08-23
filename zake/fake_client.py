@@ -29,7 +29,21 @@ import six
 from kazoo import exceptions as k_exceptions
 from kazoo.handlers import threading as k_threading
 from kazoo.protocol import states as k_states
-from kazoo.recipe import watchers as k_watchers
+from kazoo import retry as k_retry
+
+from kazoo.recipe.barrier import Barrier
+from kazoo.recipe.barrier import DoubleBarrier
+from kazoo.recipe.counter import Counter
+from kazoo.recipe.election import Election
+from kazoo.recipe.lock import Lock
+from kazoo.recipe.lock import Semaphore
+from kazoo.recipe.partitioner import SetPartitioner
+from kazoo.recipe.party import Party
+from kazoo.recipe.party import ShallowParty
+from kazoo.recipe.queue import Queue
+from kazoo.recipe.queue import LockingQueue
+from kazoo.recipe.watchers import ChildrenWatch
+from kazoo.recipe.watchers import DataWatch
 
 from zake import fake_storage as fs
 from zake import utils
@@ -182,6 +196,7 @@ class FakeClient(object):
         self._data_watches_lock = self._handler.rlock_object()
         self._listeners_lock = self._handler.rlock_object()
         self._connected = False
+        self._retry = k_retry.KazooRetry()
         if server_version is None:
             self._server_version = SERVER_VERSION
         else:
@@ -191,8 +206,19 @@ class FakeClient(object):
         self.expired = False
         self.logger = LOG
         # Helper objects that makes these easier to create.
-        self.ChildrenWatch = functools.partial(k_watchers.ChildrenWatch, self)
-        self.DataWatch = functools.partial(k_watchers.DataWatch, self)
+        self.Barrier = functools.partial(Barrier, self)
+        self.Counter = functools.partial(Counter, self)
+        self.DoubleBarrier = functools.partial(DoubleBarrier, self)
+        self.ChildrenWatch = functools.partial(ChildrenWatch, self)
+        self.DataWatch = functools.partial(DataWatch, self)
+        self.Election = functools.partial(Election, self)
+        self.Lock = functools.partial(Lock, self)
+        self.Party = functools.partial(Party, self)
+        self.Queue = functools.partial(Queue, self)
+        self.LockingQueue = functools.partial(LockingQueue, self)
+        self.SetPartitioner = functools.partial(SetPartitioner, self)
+        self.Semaphore = functools.partial(Semaphore, self)
+        self.ShallowParty = functools.partial(ShallowParty, self)
 
     @property
     def handler(self):
@@ -421,7 +447,8 @@ class FakeClient(object):
 
     def retry(self, func, *args, **kwargs):
         self.verify()
-        return func(*args, **kwargs)
+        r = self._retry.copy()
+        return r(func, *args, **kwargs)
 
     def remove_listener(self, listener):
         with self._listeners_lock:
