@@ -42,6 +42,21 @@ def make_cb(func, args=None, type=''):
     return k_states.Callback(type=type, func=func, args=args)
 
 
+def dispatch_async(handler, func, *args, **kwargs):
+    async_result = handler.async_result()
+
+    def call(func, args, kwargs):
+        try:
+            result = func(*args, **kwargs)
+            async_result.set(result)
+        except Exception as exc:
+            async_result.set_exception(exc)
+
+    cb = make_cb(call, [func, args, kwargs], type='async')
+    handler.dispatch_callback(cb)
+    return async_result
+
+
 def partition_path(path):
     path_pieces = [path]
     cur_path = path

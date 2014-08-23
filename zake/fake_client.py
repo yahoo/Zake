@@ -285,8 +285,8 @@ class FakeClient(object):
 
     def create_async(self, path, value=b"", acl=None,
                      ephemeral=False, sequence=False, makepath=False):
-        return self._generate_async(self.create, path, value=value,
-                                    acl=acl, ephemeral=ephemeral,
+        return utils.dispatch_async(self.handler, self.create, path,
+                                    value=value, acl=acl, ephemeral=ephemeral,
                                     sequence=sequence, makepath=makepath)
 
     def get(self, path, watch=None):
@@ -316,7 +316,7 @@ class FakeClient(object):
         raise NotImplementedError(_NO_ACL_MSG)
 
     def get_async(self, path, watch=None):
-        return self._generate_async(self.get, path, watch=watch)
+        return utils.dispatch_async(self.handler, self.get, path, watch=watch)
 
     def start(self, timeout=None):
         with self._open_close_lock:
@@ -344,21 +344,6 @@ class FakeClient(object):
         for func in listeners:
             self.handler.dispatch_callback(utils.make_cb(func, [state]))
 
-    def _generate_async(self, func, *args, **kwargs):
-        async_result = self.handler.async_result()
-
-        def call(func, args, kwargs):
-            try:
-                result = func(*args, **kwargs)
-                async_result.set(result)
-                return result
-            except Exception as exc:
-                async_result.set_exception(exc)
-
-        cb = utils.make_cb(call, [func, args, kwargs], type='async')
-        self.handler.dispatch_callback(cb)
-        return async_result
-
     def exists(self, path, watch=None):
         self.verify()
         if not isinstance(path, six.string_types):
@@ -374,7 +359,8 @@ class FakeClient(object):
         return exists
 
     def exists_async(self, path, watch=None):
-        return self._generate_async(self.exists, path, watch=watch)
+        return utils.dispatch_async(self.handler,
+                                    self.exists, path, watch=watch)
 
     def set(self, path, value, version=-1):
         self.verify()
@@ -384,7 +370,8 @@ class FakeClient(object):
         return result
 
     def set_async(self, path, value, version=-1):
-        return self._generate_async(self.set, path, value, version=version)
+        return utils.dispatch_async(self.handler,
+                                    self.set, path, value, version=version)
 
     def get_children(self, path, watch=None, include_data=False):
         self.verify()
@@ -411,7 +398,7 @@ class FakeClient(object):
             return children
 
     def get_children_async(self, path, watch=None, include_data=False):
-        return self._generate_async(self.get_children, path,
+        return utils.dispatch_async(self.handler, self.get_children, path,
                                     watch=watch, include_data=include_data)
 
     def stop(self):
@@ -425,7 +412,8 @@ class FakeClient(object):
         return result
 
     def delete_async(self, path, recursive=False):
-        return self._generate_async(self.delete, path, recursive=recursive)
+        return utils.dispatch_async(self.handler,
+                                    self.delete, path, recursive=recursive)
 
     def add_listener(self, listener):
         with self._listeners_lock:
@@ -479,7 +467,7 @@ class FakeClient(object):
                 pass
 
     def ensure_path_async(self, path):
-        return self._generate_async(self.ensure_path, path)
+        return utils.dispatch_async(self.handler, self.ensure_path, path)
 
     def close(self, close_handler=True):
         with self._open_close_lock:
