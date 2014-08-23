@@ -466,6 +466,29 @@ class TestMultiClient(test.Test):
             clients.append(client)
         return clients
 
+    def test_clients_counter(self):
+        clients = self.make_clients(25)
+
+        def increment(client):
+            with start_close(client):
+                counter = client.Counter("/int")
+                counter += 2
+
+        threads = []
+        for i in range(0, len(clients)):
+            threads.append(threading.Thread(target=increment,
+                                            args=(clients[i],)))
+        try:
+            for t in threads:
+                t.start()
+        finally:
+            while threads:
+                t = threads.pop()
+                t.join()
+
+        data, znode = clients[0].storage.get("/int")
+        self.assertEqual(2 * len(clients), int(data))
+
     def test_clients_attached(self):
         clients = self.make_clients(50)
         for i, c in enumerate(clients):
