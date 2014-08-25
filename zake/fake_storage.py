@@ -33,10 +33,6 @@ SEQ_ROLLOVER = 2147483647
 SEQ_ROLLOVER_TO = -2147483647
 
 
-def _split_path(path):
-    return os.path.split(path)
-
-
 class FakeStorage(object):
     """A place too place fake zookeeper paths + data + connected clients."""
 
@@ -183,7 +179,7 @@ class FakeStorage(object):
 
     def create(self, path, value=b"", sequence=False,
                ephemeral=False, session_id=None):
-        parent_path, _node_name = _split_path(path)
+        parent_path, _node_name = os.path.split(path)
         with self.lock:
             if sequence:
                 sequence_id = self._sequences.get(parent_path, 0)
