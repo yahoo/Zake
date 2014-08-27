@@ -30,10 +30,12 @@ def millitime():
 
 def normpath(path):
     """Really normalize the path by adding a missing leading slash."""
-    path = k_paths.normpath(path)
-    if not path.startswith('/'):
-        return '/' + path
-    return path
+    new_path = k_paths.normpath(path)
+    if path.endswith("/") and not new_path.endswith("/"):
+        new_path = new_path + "/"
+    if not new_path.startswith('/'):
+        return '/' + new_path
+    return new_path
 
 
 def make_cb(func, args=None, type=''):

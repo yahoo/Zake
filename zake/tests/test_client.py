@@ -413,6 +413,16 @@ class TestClient(test.Test):
 
         self.assertEqual(['c'], list(updates))
 
+    def test_create_sequence(self):
+        with start_close(self.client) as c:
+            path = c.create("/a", sequence=True)
+            self.assertEqual('/a0000000000', path)
+            c.ensure_path("/b/")
+            path = c.create("/b", sequence=True)
+            self.assertEqual('/b0000000001', path)
+            path = c.create("/b/", sequence=True)
+            self.assertEqual('/b/0000000000', path)
+
     def test_create_async(self):
         with start_close(self.client) as c:
             r = c.create_async("/b")
