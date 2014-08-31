@@ -307,13 +307,15 @@ class FakeClient(object):
                 self._child_watches[path].append(watch)
         if include_data:
             children_with_data = []
-            for (p, data) in six.iteritems(paths):
-                children_with_data.append(clean_path(p[len(path):]), data)
+            for (child_path, data) in six.iteritems(paths):
+                child_path = clean_path(child_path[len(path):])
+                children_with_data.append((child_path, data))
             return children_with_data
         else:
             children = []
-            for p in list(six.iterkeys(paths)):
-                children.append(clean_path(p[len(path):]))
+            for child_path in list(six.iterkeys(paths)):
+                child_path = clean_path(child_path[len(path):])
+                children.append(child_path)
             return children
 
     def get_children_async(self, path, watch=None, include_data=False):
