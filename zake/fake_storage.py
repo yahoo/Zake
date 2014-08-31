@@ -32,6 +32,7 @@ from kazoo.protocol import states as k_states
 # See: https://issues.apache.org/jira/browse/ZOOKEEPER-243
 SEQ_ROLLOVER = 2147483647
 SEQ_ROLLOVER_TO = -2147483647
+ROOT_PATH = '/'
 
 
 class FakeStorage(object):
@@ -48,8 +49,8 @@ class FakeStorage(object):
             self._sequences = {}
         self._lock = handler.rlock_object()
         # Ensure the root path *always* exists.
-        if "/" not in self._paths:
-            self._paths["/"] = {
+        if ROOT_PATH not in self._paths:
+            self._paths[ROOT_PATH] = {
                 'created_on': 0,
                 'updated_on': 0,
                 'version': 0,
@@ -235,8 +236,9 @@ class FakeStorage(object):
 
     def pop(self, path):
         with self.lock:
-            if path == "/":
-                raise k_exceptions.BadArgumentsError("Can not delete '/'")
+            if path == ROOT_PATH:
+                raise k_exceptions.BadArgumentsError("Can not delete %s"
+                                                     % ROOT_PATH)
             self._paths.pop(path)
 
     def get(self, path):
