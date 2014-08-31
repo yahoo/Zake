@@ -108,8 +108,7 @@ class FakeStorage(object):
             return self._clients.copy()
 
     def __getitem__(self, path):
-        with self.lock:
-            return self._paths[path]
+        return self._paths[path]
 
     def __setitem__(self, path, value):
         with self.lock:
