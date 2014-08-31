@@ -270,9 +270,10 @@ class FakeStorage(object):
     def get_children(self, path, only_direct=True):
         paths = {}
         with self.lock:
-            for (k, v) in list(six.iteritems(self._paths)):
-                if utils.is_child_path(path, k, only_direct=only_direct):
-                    paths[k] = v
+            for (other_path, data) in list(six.iteritems(self._paths)):
+                if utils.is_child_path(path, other_path,
+                                       only_direct=only_direct):
+                    paths[other_path] = data
         return paths
 
     def get_parents(self, path):
