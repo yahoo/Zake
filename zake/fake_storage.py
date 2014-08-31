@@ -152,19 +152,20 @@ class FakeStorage(object):
                     state=k_states.KeeperState.CONNECTED,
                     path=path)
                 data_watches.append(([path], event))
-            child_watches = []
-            seen_paths = set()
+            fire_paths = []
             for path in removals:
                 parents = sorted(six.iterkeys(self.get_parents(path)))
                 for parent_path in parents:
-                    if parent_path in seen_paths:
+                    if parent_path in fire_paths:
                         continue
-                    event = k_states.WatchedEvent(
-                        type=k_states.EventType.DELETED,
-                        state=k_states.KeeperState.CONNECTED,
-                        path=parent_path)
-                    child_watches.append(([parent_path], event))
-                    seen_paths.add(parent_path)
+                    fire_paths.append(parent_path)
+            child_watches = []
+            for path in fire_paths:
+                event = k_states.WatchedEvent(
+                    type=k_states.EventType.DELETED,
+                    state=k_states.KeeperState.CONNECTED,
+                    path=path)
+                child_watches.append(([path], event))
             for path in removals:
                 del self._paths[path]
         self.inform(client, child_watches, data_watches, inform_self=False)
