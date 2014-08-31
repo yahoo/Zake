@@ -486,7 +486,10 @@ class _PartialClient(object):
         data_watches = []
         child_watches = []
         with self.storage.lock:
-            path = utils.normpath(path)
+            if sequence:
+                path = utils.normpath(path, keep_trailing=True)
+            else:
+                path = utils.normpath(path, keep_trailing=False)
             if makepath:
                 for parent_path in utils.partition_path(path)[0:-1]:
                     if parent_path not in self.storage:

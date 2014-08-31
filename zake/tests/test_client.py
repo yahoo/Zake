@@ -170,6 +170,8 @@ class TestClient(test.Test):
             self.assertTrue(c.create("/c", sequence=True))
             self.assertRaises(k_exceptions.NoNodeError,
                               c.create, "/e/", sequence=True)
+            self.assertRaises(k_exceptions.NodeExistsError,
+                              c.create, "/b/")
             self.assertTrue(c.create("/b/", sequence=True))
 
     def test_ephemeral_raises(self):

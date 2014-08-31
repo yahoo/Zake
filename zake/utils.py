@@ -28,10 +28,10 @@ def millitime():
     return int(round(time.time() * 1000.0))
 
 
-def normpath(path):
+def normpath(path, keep_trailing=False):
     """Really normalize the path by adding a missing leading slash."""
     new_path = k_paths.normpath(path)
-    if path.endswith("/") and not new_path.endswith("/"):
+    if keep_trailing and path.endswith("/") and not new_path.endswith("/"):
         new_path = new_path + "/"
     if not new_path.startswith('/'):
         return '/' + new_path
