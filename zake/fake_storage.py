@@ -237,8 +237,7 @@ class FakeStorage(object):
         if path == ROOT_PATH:
             raise k_exceptions.BadArgumentsError("Can not delete %s"
                                                  % ROOT_PATH)
-        with self.lock:
-            self._paths.pop(path)
+        self._paths.pop(path)
 
     def get(self, path):
         with self.lock:
@@ -247,8 +246,7 @@ class FakeStorage(object):
             return (node['data'], self._make_znode(node, children_count))
 
     def __contains__(self, path):
-        with self.lock:
-            return path in self._paths
+        return path in self._paths
 
     @contextlib.contextmanager
     def transaction(self):
