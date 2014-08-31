@@ -430,24 +430,25 @@ class _PartialClient(object):
                                                      % (path, len(children)))
                 paths = [path]
             paths = list(reversed(sorted(set(paths))))
-            for p in paths:
-                self.storage.pop(p)
-            parents = []
-            for p in paths:
-                parents.extend(self.storage.get_parents(p))
-            parents = list(reversed(sorted(set(parents))))
-            for p in parents:
-                event = k_states.WatchedEvent(
-                    type=k_states.EventType.DELETED,
-                    state=k_states.KeeperState.CONNECTED,
-                    path=p)
-                child_watches.append(([p], event))
-            for p in paths:
-                event = k_states.WatchedEvent(
-                    type=k_states.EventType.DELETED,
-                    state=k_states.KeeperState.CONNECTED,
-                    path=p)
-                data_watches.append(([p], event))
+            with self.storage.transaction():
+                for p in paths:
+                    self.storage.pop(p)
+                parents = []
+                for p in paths:
+                    parents.extend(self.storage.get_parents(p))
+                parents = list(reversed(sorted(set(parents))))
+                for p in parents:
+                    event = k_states.WatchedEvent(
+                        type=k_states.EventType.DELETED,
+                        state=k_states.KeeperState.CONNECTED,
+                        path=p)
+                    child_watches.append(([p], event))
+                for p in paths:
+                    event = k_states.WatchedEvent(
+                        type=k_states.EventType.DELETED,
+                        state=k_states.KeeperState.CONNECTED,
+                        path=p)
+                    data_watches.append(([p], event))
         return (True, data_watches, child_watches)
 
     def set(self, path, value, version=-1):
