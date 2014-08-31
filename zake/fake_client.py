@@ -85,8 +85,7 @@ class FakeClient(object):
             self._own_storage = True
         self._partial_client = _PartialClient(self._storage)
         self._open_close_lock = self._handler.rlock_object()
-        self._child_watches_lock = self._handler.rlock_object()
-        self._data_watches_lock = self._handler.rlock_object()
+        self._watches_lock = self._handler.rlock_object()
         self._listeners_lock = self._handler.rlock_object()
         self._connected = False
         self._retry = k_retry.KazooRetry()
@@ -218,7 +217,7 @@ class FakeClient(object):
         except KeyError:
             raise k_exceptions.NoNodeError("No path %s" % (path))
         if watch:
-            with self._data_watches_lock:
+            with self._watches_lock:
                 self._data_watches[path].append(watch)
         return (data, znode)
 
@@ -240,9 +239,8 @@ class FakeClient(object):
     def start(self, timeout=None):
         with self._open_close_lock:
             if not self._connected:
-                with self._child_watches_lock:
+                with self._watches_lock:
                     self._child_watches.clear()
-                with self._data_watches_lock:
                     self._data_watches.clear()
                 self._connected = True
                 self.storage.attach(self)
@@ -273,7 +271,7 @@ class FakeClient(object):
         except KeyError:
             exists = None
         if watch:
-            with self._data_watches_lock:
+            with self._watches_lock:
                 self._data_watches[path].append(watch)
         return exists
 
@@ -303,7 +301,7 @@ class FakeClient(object):
         path = utils.normpath(path)
         paths = self.storage.get_children(path)
         if watch:
-            with self._child_watches_lock:
+            with self._watches_lock:
                 self._child_watches[path].append(watch)
         if include_data:
             children_with_data = []
@@ -353,19 +351,17 @@ class FakeClient(object):
         if not self._connected:
             return
         for (paths, event) in child_watches:
-            self._fire_watches(paths, event, self._child_watches,
-                               self._child_watches_lock)
+            self._fire_watches(paths, event, self._child_watches)
 
     def fire_data_watches(self, data_watches):
         if not self._connected:
             return
         for (paths, event) in data_watches:
-            self._fire_watches(paths, event, self._data_watches,
-                               self._data_watches_lock)
+            self._fire_watches(paths, event, self._data_watches)
 
-    def _fire_watches(self, paths, event, watch_source, watch_mutate_lock):
+    def _fire_watches(self, paths, event, watch_source):
         for path in reversed(sorted(paths)):
-            with watch_mutate_lock:
+            with self._watches_lock:
                 watches = list(watch_source.pop(path, []))
             for w in watches:
                 self.handler.dispatch_callback(utils.make_cb(w, [event]))
