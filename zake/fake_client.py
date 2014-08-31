@@ -311,7 +311,7 @@ class FakeClient(object):
             return children_with_data
         else:
             children = []
-            for child_path in list(six.iterkeys(paths)):
+            for child_path in six.iterkeys(paths):
                 child_path = clean_path(child_path[len(path):])
                 children.append(child_path)
             return children
