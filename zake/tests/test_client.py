@@ -33,16 +33,16 @@ from zake import test
 WAIT_TIME = 60
 
 
-if sys.version_info[0:2] <= (2, 6):
+if sys.version_info[0:2] == (2, 6):
     class Event(threading._Event):
         def wait(self, timeout=None):
-            super(Event, self).wait(timeout)
-            # This isn't perfect since another thread could have changed it
-            # after the above wait, but this is fine for our usage...
-            if timeout is not None:
-                return self.is_set()
-            else:
-                return True
+            self.__cond.acquire()
+            try:
+                if not self.__flag:
+                    self.__cond.wait(timeout)
+                return self.__flag
+            finally:
+                self.__cond.release()
 else:
     Event = threading.Event
 
