@@ -392,11 +392,11 @@ class FakeClient(object):
     def close(self, close_handler=True):
         with self._open_close_lock:
             if self._connected:
+                self._connected = False
                 self.storage.purge(self)
                 self._fire_state_change(k_states.KazooState.LOST)
                 if self._own_handler and close_handler:
                     self.handler.stop()
-                self._connected = False
                 self._partial_client.session_id = None
 
 
