@@ -247,7 +247,7 @@ class FakeClient(object):
                 self._connected = True
                 self.storage.attach(self)
                 self.handler.start()
-                self._partial_client.session_id = uuid.uuid4().int
+                self._partial_client.session_id = int(uuid.uuid4())
                 self._fire_state_change(k_states.KazooState.CONNECTED)
 
     def restart(self):
