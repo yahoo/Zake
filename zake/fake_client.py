@@ -420,8 +420,8 @@ class _PartialClient(object):
             if recursive:
                 paths = [path]
                 children = self.storage.get_children(path, only_direct=False)
-                for p in six.iterkeys(children):
-                    paths.append(p)
+                for child_path in six.iterkeys(children):
+                    paths.append(child_path)
             else:
                 children = self.storage.get_children(path, only_direct=False)
                 if children:
@@ -431,24 +431,24 @@ class _PartialClient(object):
                 paths = [path]
             paths = list(reversed(sorted(set(paths))))
             with self.storage.transaction():
-                for p in paths:
-                    self.storage.pop(p)
+                for path in paths:
+                    self.storage.pop(path)
                 parents = []
-                for p in paths:
-                    parents.extend(self.storage.get_parents(p))
+                for path in paths:
+                    parents.extend(self.storage.get_parents(path))
                 parents = list(reversed(sorted(set(parents))))
-                for p in parents:
+                for path in parents:
                     event = k_states.WatchedEvent(
                         type=k_states.EventType.DELETED,
                         state=k_states.KeeperState.CONNECTED,
-                        path=p)
-                    child_watches.append(([p], event))
-                for p in paths:
+                        path=path)
+                    child_watches.append(([path], event))
+                for path in paths:
                     event = k_states.WatchedEvent(
                         type=k_states.EventType.DELETED,
                         state=k_states.KeeperState.CONNECTED,
-                        path=p)
-                    data_watches.append(([p], event))
+                        path=path)
+                    data_watches.append(([path], event))
         return (True, data_watches, child_watches)
 
     def set(self, path, value, version=-1):
