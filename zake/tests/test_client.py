@@ -28,6 +28,19 @@ from kazoo.recipe import watchers as k_watchers
 from zake import fake_client
 from zake import test
 
+# A reasonably high number to avoid waiting forever...
+WAIT_TIME = 60
+
+
+# This won't be needed once we can drop 2.6 support...
+class Event(threading._Event):
+    def wait(self, timeout=None):
+        super(Event, self).wait(timeout)
+        if timeout is not None:
+            return self.is_set()
+        else:
+            return True
+
 
 def make_daemon_thread(*args, **kwargs):
     t = threading.Thread(*args, **kwargs)
@@ -274,7 +287,7 @@ class TestClient(test.Test):
         self.assertIsNone(self.client.session_id)
 
     def test_data_watch_not_triggered(self):
-        ev = threading.Event()
+        ev = Event()
         updates = []
 
         def notify_me(data, stat):
@@ -293,7 +306,7 @@ class TestClient(test.Test):
                 txn.create("/b")
                 txn.check("/b", version=0)
             self.assertTrue(txn.committed)
-            ev.wait()
+            self.assertTrue(ev.wait(WAIT_TIME))
             self.assertEqual(1, len(updates))
 
     def test_concurrent_transaction_aborts(self):
@@ -353,7 +366,7 @@ class TestClient(test.Test):
 
     def test_data_watch(self):
         updates = collections.deque()
-        ev = threading.Event()
+        ev = Event()
 
         def notify_me(data, stat):
             updates.append((data, stat))
@@ -361,16 +374,16 @@ class TestClient(test.Test):
 
         k_watchers.DataWatch(self.client, "/b", func=notify_me)
         with start_close(self.client) as c:
-            ev.wait()
+            self.assertTrue(ev.wait(WAIT_TIME))
             ev.clear()
             c.ensure_path("/b")
-            ev.wait()
+            self.assertTrue(ev.wait(WAIT_TIME))
             ev.clear()
             c.set("/b", b"1")
-            ev.wait()
+            self.assertTrue(ev.wait(WAIT_TIME))
             ev.clear()
             c.set("/b", b"2")
-            ev.wait()
+            self.assertTrue(ev.wait(WAIT_TIME))
             ev.clear()
 
         self.assertEqual(4, len(updates))
@@ -378,7 +391,7 @@ class TestClient(test.Test):
         ev.clear()
         with start_close(self.client) as c:
             c.delete("/b")
-            ev.wait()
+            self.assertTrue(ev.wait(WAIT_TIME))
 
         self.assertEqual(5, len(updates))
 
@@ -400,7 +413,7 @@ class TestClient(test.Test):
 
     def test_child_watch(self):
         updates = collections.deque()
-        ev = threading.Event()
+        ev = Event()
 
         def one_time_collector_func(children):
             updates.extend(children)
@@ -412,13 +425,13 @@ class TestClient(test.Test):
             k_watchers.ChildrenWatch(self.client, "/",
                                      func=one_time_collector_func)
             c.ensure_path("/b")
-            ev.wait()
+            self.assertTrue(ev.wait(WAIT_TIME))
 
         self.assertEqual(['b'], list(updates))
 
     def test_child_child_watch(self):
         updates = collections.deque()
-        ev = threading.Event()
+        ev = Event()
 
         def one_time_collector_func(children):
             updates.extend(children)
@@ -430,7 +443,7 @@ class TestClient(test.Test):
             k_watchers.ChildrenWatch(self.client, "/b",
                                      func=one_time_collector_func)
             c.ensure_path("/b/c")
-            ev.wait()
+            self.assertTrue(ev.wait(WAIT_TIME))
 
         self.assertEqual(['c'], list(updates))
 
@@ -453,7 +466,7 @@ class TestClient(test.Test):
 
     def test_create_async_linked(self):
         traces = collections.deque()
-        ev = threading.Event()
+        ev = Event()
 
         def add_trace(result):
             traces.append(result)
@@ -463,13 +476,13 @@ class TestClient(test.Test):
             r = c.create_async("/b")
             r.rawlink(add_trace)
             self.assertEqual("/b", r.get())
-            ev.wait()
+            self.assertTrue(ev.wait(WAIT_TIME))
 
         self.assertEqual(1, len(traces))
         self.assertEqual(r, traces[0])
 
     def test_create_async_exception(self):
-        ev = threading.Event()
+        ev = Event()
 
         def wait_for(result):
             ev.set()
@@ -477,7 +490,7 @@ class TestClient(test.Test):
         with start_close(self.client) as c:
             r = c.create_async("/b/c/d")
             r.rawlink(wait_for)
-            ev.wait()
+            self.assertTrue(ev.wait(WAIT_TIME))
             self.assertFalse(r.successful())
             self.assertIsNotNone(r.exception)
 
@@ -535,7 +548,7 @@ class TestMultiClient(test.Test):
 
     def test_clients_triggered(self):
         client1, client2 = self.make_clients(2)
-        ev = threading.Event()
+        ev = Event()
 
         @client1.DataWatch("/b")
         def cb(data, stat):
@@ -550,13 +563,13 @@ class TestMultiClient(test.Test):
                 self.assertEqual(b'b', value)
                 client2.create("/b", b'eee')
                 client2.set("/b", b'fff')
-            ev.wait()
+            self.assertTrue(ev.wait(WAIT_TIME))
 
     def test_purge_clients_triggered(self):
         client1, client2 = self.make_clients(2)
         events = collections.deque()
-        fff_rcv = threading.Event()
-        end_rcv = threading.Event()
+        fff_rcv = Event()
+        end_rcv = Event()
 
         @client1.DataWatch("/b")
         def cb(data, stat):
@@ -574,7 +587,7 @@ class TestMultiClient(test.Test):
                 self.assertEqual(b'b', value)
                 client2.create("/b", b'eee', ephemeral=True)
                 client2.set("/b", b'fff')
-                fff_rcv.wait()
-            end_rcv.wait()
+                self.assertTrue(fff_rcv.wait(WAIT_TIME))
+            self.assertTrue(end_rcv.wait(WAIT_TIME))
 
         self.assertEqual((None, None), events[-1])
