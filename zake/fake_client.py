@@ -349,23 +349,22 @@ class FakeClient(object):
             self._listeners.discard(listener)
 
     def fire_child_watches(self, child_watches):
-        if not self._connected:
-            return
         for (paths, event) in child_watches:
             self._fire_watches(paths, event, self._child_watches)
 
     def fire_data_watches(self, data_watches):
-        if not self._connected:
-            return
         for (paths, event) in data_watches:
             self._fire_watches(paths, event, self._data_watches)
 
     def _fire_watches(self, paths, event, watch_source):
         for path in reversed(sorted(paths)):
-            with self._watches_lock:
-                watches = list(watch_source.pop(path, []))
-            for w in watches:
-                self.handler.dispatch_callback(utils.make_cb(w, [event]))
+            with self._open_close_lock:
+                if self._connected:
+                    with self._watches_lock:
+                        watches = list(watch_source.pop(path, []))
+                    for w in watches:
+                        cb = utils.make_cb(w, [event])
+                        self.handler.dispatch_callback(cb)
 
     def transaction(self):
         return FakeTransactionRequest(self)
