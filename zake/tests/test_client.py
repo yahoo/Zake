@@ -29,6 +29,12 @@ from zake import fake_client
 from zake import test
 
 
+def make_daemon_thread(*args, **kwargs):
+    t = threading.Thread(*args, **kwargs)
+    t.daemon = True
+    return t
+
+
 @contextlib.contextmanager
 def start_close(client):
     client.start()
@@ -118,7 +124,7 @@ class TestClient(test.Test):
 
         threads = []
         for i in range(0, 20):
-            threads.append(threading.Thread(target=do_restart))
+            threads.append(make_daemon_thread(target=do_restart))
             threads[-1].start()
         while threads:
             t = threads.pop()
@@ -302,8 +308,7 @@ class TestClient(test.Test):
             paths = []
             for i in range(0, 20):
                 paths.append("/tmp%010d" % (i))
-                t = threading.Thread(target=thread_create, args=(c, paths[-1]))
-                t.daemon = True
+                t = make_daemon_thread(target=thread_create, args=(c, paths[-1]))
                 threads.append(t)
                 t.start()
             while threads:
@@ -329,9 +334,8 @@ class TestClient(test.Test):
             paths = []
             for i in range(0, 20):
                 paths.append("/tmp%010d" % (i % 10))
-                t = threading.Thread(target=thread_create,
-                                     args=(c, paths[-1], i))
-                t.daemon = True
+                t = make_daemon_thread(target=thread_create,
+                                       args=(c, paths[-1], i))
                 threads.append(t)
                 t.start()
             while threads:
@@ -503,8 +507,8 @@ class TestMultiClient(test.Test):
 
         threads = []
         for i in range(0, len(clients)):
-            threads.append(threading.Thread(target=increment,
-                                            args=(clients[i],)))
+            threads.append(make_daemon_thread(target=increment,
+                                              args=(clients[i],)))
         try:
             for t in threads:
                 t.start()
