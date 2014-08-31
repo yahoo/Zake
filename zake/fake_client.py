@@ -417,7 +417,6 @@ class _PartialClient(object):
                 raise k_exceptions.BadVersionError("Version mismatch"
                                                    " (%s != %s)"
                                                    % (version, path_version))
-
             if recursive:
                 paths = [path]
                 children = self.storage.get_children(path, only_direct=False)
