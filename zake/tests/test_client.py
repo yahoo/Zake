@@ -321,7 +321,8 @@ class TestClient(test.Test):
             paths = []
             for i in range(0, 20):
                 paths.append("/tmp%010d" % (i))
-                t = make_daemon_thread(target=thread_create, args=(c, paths[-1]))
+                t = make_daemon_thread(target=thread_create,
+                                       args=(c, paths[-1]))
                 threads.append(t)
                 t.start()
             while threads:
