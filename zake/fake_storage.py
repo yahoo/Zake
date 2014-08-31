@@ -156,7 +156,8 @@ class FakeStorage(object):
             child_watches = []
             seen_paths = set()
             for path in removals:
-                for parent_path in self.get_parents(path):
+                parents = sorted(six.iterkeys(self.get_parents(path)))
+                for parent_path in parents:
                     if parent_path in seen_paths:
                         continue
                     event = k_states.WatchedEvent(
