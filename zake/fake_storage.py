@@ -17,6 +17,7 @@
 #    under the License.
 
 import contextlib
+import itertools
 import os
 import sys
 
@@ -179,24 +180,34 @@ class FakeStorage(object):
 
     def create(self, path, value=b"", sequence=False,
                ephemeral=False, session_id=None):
-        parent_path, _node_name = os.path.split(path)
-        with self.lock:
-            if sequence:
+
+        def sequence_iter(path, parent_path):
+            for i in itertools.count(0):
                 sequence_id = self._sequences.get(parent_path, 0)
                 if sequence_id == SEQ_ROLLOVER:
                     self._sequences[parent_path] = SEQ_ROLLOVER_TO
                 else:
                     self._sequences[parent_path] = sequence_id + 1
-                path = path + '%010d' % (sequence_id)
+                yield path + '%010d' % (sequence_id)
+
+        parent_path, _node_name = os.path.split(path)
+        with self.lock:
+            if sequence:
+                for possible_path in sequence_iter(path, parent_path):
+                    if possible_path not in self:
+                        path = possible_path
+                        break
             parents = sorted(six.iterkeys(self.get_parents(path)))
+            if parent_path not in self:
+                if sequence:
+                    self._sequences.pop(parent_path, None)
+                raise k_exceptions.NoNodeError("Parent node %s does not exist"
+                                               % (parent_path))
             if ephemeral and not session_id:
                 raise k_exceptions.SystemZookeeperError("Ephemeral node %s can"
                                                         " not be created"
                                                         " without a session"
                                                         " id" % path)
-            if parent_path not in self:
-                raise k_exceptions.NoNodeError("Parent node %s does not exist"
-                                               % (parent_path))
             if path in self:
                 raise k_exceptions.NodeExistsError("Node %s already"
                                                    " exists" % (path))

@@ -162,6 +162,16 @@ class TestClient(test.Test):
             self.assertEqual(b"efg", data)
             self.assertEqual(1, znode.version)
 
+    def test_create_slashed(self):
+        with start_close(self.client) as c:
+            self.assertEqual("/b", c.create("/b"))
+            self.assertEqual("/b0000000000", c.create("/b", sequence=True))
+            c.create("/c0000000000")
+            self.assertTrue(c.create("/c", sequence=True))
+            self.assertRaises(k_exceptions.NoNodeError,
+                              c.create, "/e/", sequence=True)
+            self.assertTrue(c.create("/b/", sequence=True))
+
     def test_ephemeral_raises(self):
         with start_close(self.client) as c:
             c.create("/b", ephemeral=True)
@@ -179,6 +189,11 @@ class TestClient(test.Test):
         with start_close(self.client) as c:
             c.create("/b", ephemeral=False)
             c.create("/b/c")
+
+    def test_root_delete(self):
+        with start_close(self.client) as c:
+            self.assertRaises(k_exceptions.BadArgumentsError,
+                              c.delete, '/')
 
     def test_delete(self):
         with start_close(self.client) as c:
