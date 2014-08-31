@@ -18,6 +18,7 @@
 
 import collections
 import contextlib
+import sys
 import threading
 
 import six
@@ -32,14 +33,18 @@ from zake import test
 WAIT_TIME = 60
 
 
-# This won't be needed once we can drop 2.6 support...
-class Event(threading._Event):
-    def wait(self, timeout=None):
-        super(Event, self).wait(timeout)
-        if timeout is not None:
-            return self.is_set()
-        else:
-            return True
+if sys.version_info[0:2] <= (2, 6):
+    class Event(threading._Event):
+        def wait(self, timeout=None):
+            super(Event, self).wait(timeout)
+            # This isn't perfect since another thread could have changed it
+            # after the above wait, but this is fine for our usage...
+            if timeout is not None:
+                return self.is_set()
+            else:
+                return True
+else:
+    Event = threading.Event
 
 
 def make_daemon_thread(*args, **kwargs):
