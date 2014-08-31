@@ -171,9 +171,7 @@ class FakeStorage(object):
         return len(removals)
 
     def inform(self, client, child_watches, data_watches, inform_self=True):
-        with self._client_lock:
-            clients = set(self._clients)
-        for other_client in clients:
+        for other_client in self.clients:
             if not inform_self and other_client is client:
                 continue
             other_client.fire_child_watches(child_watches)
