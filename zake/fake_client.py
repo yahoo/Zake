@@ -362,15 +362,11 @@ class FakeClient(object):
                                self._data_watches_lock)
 
     def _fire_watches(self, paths, event, watch_source, watch_mutate_lock):
-        dispatched = set()
         for path in reversed(sorted(paths)):
-            if path in dispatched:
-                continue
             with watch_mutate_lock:
                 watches = list(watch_source.pop(path, []))
             for w in watches:
                 self.handler.dispatch_callback(utils.make_cb(w, [event]))
-            dispatched.add(path)
 
     def transaction(self):
         return FakeTransactionRequest(self)
