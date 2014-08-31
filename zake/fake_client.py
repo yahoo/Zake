@@ -237,19 +237,17 @@ class FakeClient(object):
         return utils.dispatch_async(self.handler, self.get, path, watch=watch)
 
     def start(self, timeout=None):
-        started = False
-        with self._open_close_lock:
-            if not self._connected:
-                self._connected = True
-                started = True
-        if started:
-            with self._watches_lock:
-                self._child_watches.clear()
-                self._data_watches.clear()
-            self.storage.attach(self)
-            self.handler.start()
-            self._partial_client.session_id = int(uuid.uuid4())
-            self._fire_state_change(k_states.KazooState.CONNECTED)
+        if not self._connected:
+            with self._open_close_lock:
+                if not self._connected:
+                    self._connected = True
+                    with self._watches_lock:
+                        self._child_watches.clear()
+                        self._data_watches.clear()
+                    self.storage.attach(self)
+                    self.handler.start()
+                    self._partial_client.session_id = int(uuid.uuid4())
+                    self._fire_state_change(k_states.KazooState.CONNECTED)
 
     def restart(self):
         with self._open_close_lock:
@@ -387,17 +385,15 @@ class FakeClient(object):
         return utils.dispatch_async(self.handler, self.ensure_path, path)
 
     def close(self, close_handler=True):
-        closed = False
-        with self._open_close_lock:
-            if self._connected:
-                self._connected = False
-                closed = True
-        if closed:
-            self.storage.purge(self)
-            self._fire_state_change(k_states.KazooState.LOST)
-            if self._own_handler and close_handler:
-                self.handler.stop()
-            self._partial_client.session_id = None
+        if self._connected:
+            with self._open_close_lock:
+                if self._connected:
+                    self._connected = False
+                    self.storage.purge(self)
+                    self._fire_state_change(k_states.KazooState.LOST)
+                    if self._own_handler and close_handler:
+                        self.handler.stop()
+                    self._partial_client.session_id = None
 
 
 class _PartialClient(object):
