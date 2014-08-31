@@ -234,10 +234,10 @@ class FakeStorage(object):
             return (True, parents, path)
 
     def pop(self, path):
+        if path == ROOT_PATH:
+            raise k_exceptions.BadArgumentsError("Can not delete %s"
+                                                 % ROOT_PATH)
         with self.lock:
-            if path == ROOT_PATH:
-                raise k_exceptions.BadArgumentsError("Can not delete %s"
-                                                     % ROOT_PATH)
             self._paths.pop(path)
 
     def get(self, path):
