@@ -237,7 +237,8 @@ class FakeStorage(object):
         if path == ROOT_PATH:
             raise k_exceptions.BadArgumentsError("Can not delete %s"
                                                  % ROOT_PATH)
-        self._paths.pop(path)
+        with self.lock:
+            self._paths.pop(path)
 
     def get(self, path):
         with self.lock:
