@@ -44,7 +44,7 @@ class FakeStorage(object):
         else:
             self._paths = {}
         if sequences:
-            self._sequences = sequences
+            self._sequences = dict(sequences)
         else:
             self._sequences = {}
         self._lock = handler.rlock_object()
