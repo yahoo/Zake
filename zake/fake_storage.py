@@ -94,18 +94,15 @@ class FakeStorage(object):
 
     @property
     def paths(self):
-        with self.lock:
-            return dict(self._paths)
+        return self._paths
 
     @property
     def sequences(self):
-        with self.lock:
-            return dict(self._sequences)
+        return self._sequences
 
     @property
     def clients(self):
-        with self._client_lock:
-            return self._clients.copy()
+        return self._clients
 
     def __getitem__(self, path):
         return self._paths[path]
@@ -172,7 +169,9 @@ class FakeStorage(object):
         return len(removals)
 
     def inform(self, client, child_watches, data_watches, inform_self=True):
-        for other_client in self.clients:
+        with self._client_lock:
+            clients = self._clients.copy()
+        for other_client in clients:
             if not inform_self and other_client is client:
                 continue
             other_client.fire_child_watches(child_watches)
@@ -256,8 +255,8 @@ class FakeStorage(object):
             # data if the context manager fails (this makes it appear that the
             # operations done during the transaction either complete as a
             # group or do not complete).
-            paths = self.paths
-            sequences = self.sequences
+            paths = self._paths.copy()
+            sequences = self._sequences.copy()
             try:
                 yield
             except Exception:
