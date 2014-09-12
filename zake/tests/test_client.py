@@ -446,12 +446,20 @@ class TestClient(test.Test):
                 return False
 
         with start_close(self.client) as c:
+            c.ensure_path("/b")
             k_watchers.ChildrenWatch(self.client, "/b",
                                      func=one_time_collector_func)
             c.ensure_path("/b/c")
             self.assertTrue(ev.wait(WAIT_TIME))
 
         self.assertEqual(['c'], list(updates))
+
+    def test_child_watch_no_create(self):
+        cb = lambda *args, **kwargs: None
+        with start_close(self.client) as c:
+            self.assertRaises(k_exceptions.NoNodeError,
+                              k_watchers.ChildrenWatch,
+                              self.client, "/b", cb)
 
     def test_create_sequence(self):
         with start_close(self.client) as c:

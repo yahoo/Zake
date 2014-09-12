@@ -300,7 +300,11 @@ class FakeClient(object):
             return p.strip("/")
 
         path = utils.normpath(path)
-        paths = self.storage.get_children(path)
+        with self.storage.lock:
+            if path not in self.storage:
+                raise k_exceptions.NoNodeError("Node %s does not exist"
+                                               % (path))
+            paths = self.storage.get_children(path)
         if watch:
             with self._watches_lock:
                 self._child_watches[path].append(watch)
@@ -413,7 +417,8 @@ class _PartialClient(object):
         path = utils.normpath(path)
         with self.storage.lock:
             if path not in self.storage:
-                raise k_exceptions.NoNodeError("No path %s" % (path))
+                raise k_exceptions.NoNodeError("Node %s does not exist"
+                                               % (path))
             path_version = self.storage[path]['version']
             if version != -1 and path_version != version:
                 raise k_exceptions.BadVersionError("Version mismatch"
@@ -464,7 +469,7 @@ class _PartialClient(object):
         try:
             stat = self.storage.set(path, value, version=version)
         except KeyError:
-            raise k_exceptions.NoNodeError("No path %s" % (path))
+            raise k_exceptions.NoNodeError("Node %s does not exist" % (path))
         data_watches = []
         child_watches = []
         event = k_states.WatchedEvent(type=k_states.EventType.CHANGED,
