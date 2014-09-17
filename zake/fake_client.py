@@ -215,7 +215,7 @@ class FakeClient(object):
         try:
             (data, znode) = self.storage.get(path)
         except KeyError:
-            raise k_exceptions.NoNodeError("No path %s" % (path))
+            raise k_exceptions.NoNodeError("Node %s does not exist" % (path))
         if watch:
             with self._watches_lock:
                 self._data_watches[path].append(watch)
