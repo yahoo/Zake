@@ -70,7 +70,7 @@ class FakeClient(object):
     def __init__(self, handler=None, storage=None, server_version=None):
         self._listeners = set()
         self._child_watches = collections.defaultdict(list)
-        self._data_watches = collections.defaultdict(list)
+        self._data_watchers = collections.defaultdict(list)
         if handler is None:
             self._handler = k_threading.SequentialThreadingHandler()
             self._own_handler = True
@@ -154,7 +154,7 @@ class FakeClient(object):
 
     @property
     def data_watches(self):
-        return self._data_watches
+        return self._data_watchers
 
     @property
     def listeners(self):
@@ -218,7 +218,7 @@ class FakeClient(object):
             raise k_exceptions.NoNodeError("Node %s does not exist" % (path))
         if watch:
             with self._watches_lock:
-                self._data_watches[path].append(watch)
+                self._data_watchers[path].append(watch)
         return (data, znode)
 
     def set_acls(self, path, acls, version=-1):
@@ -243,7 +243,7 @@ class FakeClient(object):
                     self._connected = True
                     with self._watches_lock:
                         self._child_watches.clear()
-                        self._data_watches.clear()
+                        self._data_watchers.clear()
                     self.storage.attach(self)
                     self.handler.start()
                     self._partial_client.session_id = int(uuid.uuid4())
@@ -273,7 +273,7 @@ class FakeClient(object):
             exists = None
         if watch:
             with self._watches_lock:
-                self._data_watches[path].append(watch)
+                self._data_watchers[path].append(watch)
         return exists
 
     def exists_async(self, path, watch=None):
@@ -358,7 +358,7 @@ class FakeClient(object):
 
     def fire_data_watches(self, data_watches):
         for (paths, event) in data_watches:
-            self._fire_watches(paths, event, self._data_watches)
+            self._fire_watches(paths, event, self._data_watchers)
 
     def _fire_watches(self, paths, event, watch_source):
         for path in reversed(sorted(paths)):
@@ -394,7 +394,7 @@ class FakeClient(object):
                     self._connected = False
                     with self._watches_lock:
                         self._child_watches.clear()
-                        self._data_watches.clear()
+                        self._data_watchers.clear()
                     self.storage.purge(self)
                     self._fire_state_change(k_states.KazooState.LOST)
                     if self._own_handler and close_handler:
