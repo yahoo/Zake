@@ -26,7 +26,7 @@ with open("README.rst", "r") as readme:
 
 setup(
     name='zake',
-    version='0.1.6',
+    version='0.1.7',
     description='A python package that works to provide a nice set of '
                 'testing utilities for the kazoo library.',
     author="Joshua Harlow",
