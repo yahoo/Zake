@@ -76,20 +76,20 @@ class TestClient(test.Test):
     def test_command(self):
         with start_close(self.client) as c:
             self.assertTrue(c.connected)
-            self.assertEqual("imok", c.command('ruok'))
+            self.assertEqual(b"imok", c.command(b'ruok'))
             self.client.command('kill')
             self.assertFalse(c.connected)
 
     def test_command_version(self):
         with start_close(self.client) as c:
-            stats = c.command('stat')
+            stats = c.command(b'stat')
             self.assertIn("standalone", stats)
             version = ".".join([str(s) for s in fake_client.SERVER_VERSION])
             self.assertIn(version, stats)
 
     def test_command_envi(self):
         with start_close(self.client) as c:
-            envi = c.command('envi')
+            envi = c.command(b'envi')
             self.assertIn("zookeeper.version", envi)
             version = ".".join([str(s) for s in fake_client.SERVER_VERSION])
             self.assertIn(version, envi)
@@ -101,7 +101,7 @@ class TestClient(test.Test):
     def test_command_custom_version(self):
         client = fake_client.FakeClient(server_version=(1, 1, 1))
         with start_close(client) as c:
-            stats = c.command('stat')
+            stats = c.command(b'stat')
             self.assertIn("standalone", stats)
             self.assertIn('1.1.1', stats)
 

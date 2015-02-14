@@ -122,16 +122,16 @@ class FakeClient(object):
 
     def command(self, cmd=b'ruok'):
         self.verify()
-        if cmd == 'ruok':
+        if cmd == b'ruok':
             return 'imok'
-        if cmd == 'stat':
+        if cmd == b'stat':
             server_version = ".".join([str(s) for s in self._server_version])
             return "\n".join(['Zake the fake version: %s' % (version.VERSION),
                               'Mimicked version: %s' % (server_version),
                               'Mode: standalone'])
-        if cmd == "kill":
+        if cmd == b"kill":
             self.stop()
-        if cmd == 'envi':
+        if cmd == b'envi':
             server_version = ".".join([str(s) for s in self._server_version])
             lines = [
                 "Environment:",
