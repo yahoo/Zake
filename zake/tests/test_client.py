@@ -76,7 +76,7 @@ class TestClient(test.Test):
     def test_command(self):
         with start_close(self.client) as c:
             self.assertTrue(c.connected)
-            self.assertEqual(b"imok", c.command(b'ruok'))
+            self.assertEqual("imok", c.command(b'ruok'))
             self.client.command('kill')
             self.assertFalse(c.connected)
 
