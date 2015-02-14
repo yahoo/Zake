@@ -131,6 +131,13 @@ class FakeClient(object):
                               'Mode: standalone'])
         if cmd == "kill":
             self.stop()
+        if cmd == 'envi':
+            server_version = ".".join([str(s) for s in self._server_version])
+            lines = [
+                "Environment:",
+                "zookeeper.version=%s" % server_version,
+            ]
+            return "\n".join(lines)
         return ''
 
     def verify(self):

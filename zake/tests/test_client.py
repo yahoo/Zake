@@ -87,6 +87,13 @@ class TestClient(test.Test):
             version = ".".join([str(s) for s in fake_client.SERVER_VERSION])
             self.assertIn(version, stats)
 
+    def test_command_envi(self):
+        with start_close(self.client) as c:
+            envi = c.command('envi')
+            self.assertIn("zookeeper.version", envi)
+            version = ".".join([str(s) for s in fake_client.SERVER_VERSION])
+            self.assertIn(version, envi)
+
     def test_command_empty_version(self):
         self.assertRaises(ValueError, fake_client.FakeClient,
                           server_version=[])
