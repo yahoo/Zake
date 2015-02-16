@@ -32,7 +32,7 @@ function on_exit() {
 
 trap "on_exit" EXIT
 
-VERSION="3.4.5"
+VERSION="3.4.6"
 if [ ! -d "$PWD/.zookeeper" ]; then
     mkdir -p "$PWD/.zookeeper"
 fi
