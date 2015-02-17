@@ -2,6 +2,7 @@
 
 set -e
 
+FORCE="${FORCE:-no}"
 PKGS=""
 PKG_CMD=""
 if [ -f "/etc/redhat-release" ]; then
@@ -12,7 +13,10 @@ elif [ -f "/etc/debian_version" ]; then
     PKG_CMD="apt-get install -y"
 else
     echo "Unknown operating system!"
-    exit 1
+    if [ "$FORCE" != "yes" ]; then
+        echo -e "To run anyway set FORCE=yes and rerun." >&2
+        exit 1
+    fi
 fi
 
 JAVA=`which java`
