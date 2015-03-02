@@ -69,7 +69,7 @@ class FakeClient(object):
 
     def __init__(self, handler=None, storage=None, server_version=None):
         self._listeners = set()
-        self._child_watches = collections.defaultdict(list)
+        self._child_watchers = collections.defaultdict(list)
         self._data_watchers = collections.defaultdict(list)
         if handler is None:
             self._handler = k_threading.SequentialThreadingHandler()
@@ -157,7 +157,7 @@ class FakeClient(object):
 
     @property
     def child_watches(self):
-        return self._child_watches
+        return self._child_watchers
 
     @property
     def data_watches(self):
@@ -249,7 +249,7 @@ class FakeClient(object):
                 if not self._connected:
                     self._connected = True
                     with self._watches_lock:
-                        self._child_watches.clear()
+                        self._child_watchers.clear()
                         self._data_watchers.clear()
                     self.storage.attach(self)
                     self.handler.start()
@@ -314,7 +314,7 @@ class FakeClient(object):
             paths = self.storage.get_children(path)
         if watch:
             with self._watches_lock:
-                self._child_watches[path].append(watch)
+                self._child_watchers[path].append(watch)
         if include_data:
             children_with_data = []
             for (child_path, data) in six.iteritems(paths):
@@ -361,7 +361,7 @@ class FakeClient(object):
 
     def fire_child_watches(self, child_watches):
         for (paths, event) in child_watches:
-            self._fire_watches(paths, event, self._child_watches)
+            self._fire_watches(paths, event, self._child_watchers)
 
     def fire_data_watches(self, data_watches):
         for (paths, event) in data_watches:
@@ -400,7 +400,7 @@ class FakeClient(object):
                 if self._connected:
                     self._connected = False
                     with self._watches_lock:
-                        self._child_watches.clear()
+                        self._child_watchers.clear()
                         self._data_watchers.clear()
                     self.storage.purge(self)
                     self._fire_state_change(k_states.KazooState.LOST)
