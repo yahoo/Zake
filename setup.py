@@ -36,7 +36,6 @@ setup(
     install_requires=[
         'kazoo',
         'six',
-        'testtools',
     ],
     classifiers=[
         "Development Status :: 4 - Beta",
