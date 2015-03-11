@@ -1,0 +1,3 @@
+nose
+testtools
+flake8
