@@ -1,0 +1,117 @@
+0.2.2:
+0.2.1:
+  - Remove testtools as an install requirement
+  - Changed attribute name "_child_watches" to "_child_watchers"
+  - Update run_zookeeper.sh
+0.2.0:
+  - Ensure commands are always byte strings
+0.1.8:
+  - Add basic envi command support
+0.1.7:
+  - Changed attribute name "_data_watches" to "_data_watchers"
+  - Unify the exception messaging for no node found
+0.1.6:
+  - Correctly handle get_children() with a path that
+    does not exist
+0.1.5:
+  - Copy the incoming sequences if provided
+  - Expose the storage properties directly
+0.1.4:
+  - Clear the watches in the stop() method
+  - Better lock management
+  - Keep the trailing slash only for sequenced creates
+  - Use a constant to define what root is
+0.1.3:
+  - Fix path postfix lost during normalization
+0.1.2:
+  - Add the 3.4 classifier
+0.1.1:
+  - Use retries and include the common client helpers
+  - Correctly set data when a version is passed
+  - Move _generate_async() (now named dispatch_async()) from
+    client to utils
+0.1:
+  - Make multi-client (single-shared) storage possible
+0.0.28:
+  - Fix byte string value
+0.0.27:
+  - Normalize paths to include a leading slash
+0.0.26:
+  - Use a delayed operation object in the fake transaction
+  - Have restart act as one block (not two)
+0.0.25:
+  - Add ephemeral znode owner support
+  - Make storage lock argument mandatory
+  - Partial client is for internal use only (denote this)
+0.0.24:
+  - Add much more robust transaction support
+  - Handle exists more naturally by using the underlying storage
+0.0.23:
+  - Use a specific lock for listener mutations
+0.0.22:
+  - Use granular locks for watch dictionary mutation
+0.0.21:
+  - Add basic check transaction support
+  - Create all parent paths and child paths in the same lock context
+  - Address concurrent client variable modification
+  - Add link to kazoo readthedocs
+  - Move znode making function to storage
+  - Ensure all paths are normalized before storage interaction
+  - Fix custom version in 'stat' response
+0.0.20:
+  - Allow how many spawn workers to be specified
+0.0.19:
+  - Add ensure_path_async method
+  - Include makepath on the create_async method
+  - Add restart functionality
+  - Add create makepath support
+  - Add helper ChildrenWatch and DataWatch
+    attributes (mimicking the kazoo client attributes)
+  - Add handler subclass that is aware of what has spawned
+0.0.18:
+  - Remove wait method
+0.0.17:
+  - Fix children deletion.
+0.0.16:
+  - Add a wait function that will block until empty handler queues
+  - Create acl functions (but mark as not implemented).
+  - Create two sets of watchers, data watchers (used for
+    data changes, deletions, set) and children watchers (used
+    for children change notification).
+  - Ensure watch registered for existence checks
+  - Add sequence id support
+0.0.15:
+  - Add basic functionality tests
+0.0.14:
+  - Add kill command support
+0.0.13:
+  - Fix py3.3 README.rst reading errors
+0.0.12:
+  - Switch to using a README.rst file
+0.0.11:
+  - Add basic command support
+0.0.10:
+  - Implement the server_version function
+0.0.9:
+  - Fixup async sets to work
+0.0.8:
+  - Add get_children_async call
+0.0.7:
+  - Add close() to client
+0.0.6:
+  - Add more async methods
+0.0.5:
+  - Add get_async
+  - When data is set update the 'updated_on' key
+  - Split up fake_client file
+0.0.4:
+  - Transaction support + tiny fixups
+0.0.3:
+  - Fix python33 failures
+0.0.2:
+  - Add locking to fake storage
+  - Add type checking to set function
+0.0.1:
+  - Add zookeeper running shell script
+  - Add long description and setup.cfg file
+  - Initial commit
