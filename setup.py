@@ -26,7 +26,7 @@ with open("README.rst", "r") as readme:
 
 setup(
     name='zake',
-    version='0.2.1',
+    version='0.2.2',
     description='A python package that works to provide a nice set of '
                 'testing utilities for the kazoo library.',
     author="Joshua Harlow",
@@ -34,7 +34,7 @@ setup(
     url='https://github.com/yahoo/Zake',
     license="ASL 2.0",
     install_requires=[
-        'kazoo',
+        'kazoo>=1.3.1,!=2.1',
         'six',
     ],
     classifiers=[

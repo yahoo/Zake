@@ -1,4 +1,5 @@
 0.2.2:
+  - Restrict kazoo version until bug in 2.1 is resolved
 0.2.1:
   - Remove testtools as an install requirement
   - Changed attribute name "_child_watches" to "_child_watchers"
