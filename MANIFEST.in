@@ -1,0 +1,8 @@
+exclude .gitignore
+exclude .travis.yml
+
+include ChangeLog
+include README.rst
+include LICENSE
+
+global-exclude *.pyc
